@@ -72,7 +72,7 @@ ${CLEAN_ESSENT_TARGETS}: clean_essent_%:
 
 .PHONY: $(PREPARE_TARGETS) $(COMPILE_EMULATOR_ESSENT_TARGETS) emulator_essent all clean prepare clean_essent
 
-prepare: $(PREPARE_TARGETS) 
+prepare: $(PREPARE_TARGETS)
 	mkdir -p $(output_dir)
 	mkdir -p $(log_dir)
 
