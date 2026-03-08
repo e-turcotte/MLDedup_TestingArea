@@ -6,8 +6,6 @@ build_dir=$(base_dir)/build
 output_dir=$(base_dir)/emulator
 log_dir=$(base_dir)/log
 
-essent_dir=$(base_dir)/essent
-
 RUN_BENCHMARK = $(benchmark_dir)/dhrystone.riscv
 
 CXX = g++-11
@@ -16,19 +14,31 @@ AR = gcc-ar-11
 
 
 # Designs to compile
-
-# rocket21-8c \
-# boom21-8small \
-# boom21-8large \
-# boom21-8mega \
-
 DESIGNS = \
-	rocket21-8c \
+	rocket21-1c \
+	rocket21-2c \
 	rocket21-4c \
+	rocket21-6c \
+	rocket21-8c \
+	boom21-small \
+	boom21-2small \
+	boom21-4small \
+	boom21-6small \
+	boom21-8small \
+	boom21-large \
+	boom21-2large \
+	boom21-4large \
+	boom21-6large \
+	boom21-8large \
+	boom21-mega \
+	boom21-2mega \
+	boom21-4mega \
+	boom21-6mega \
+	boom21-8mega \
 
 
 # Compile essent
-ESSENT_JAR = $(essent_dir)/utils/bin/essent.jar
+ESSENT_JAR = essent.jar
 
 
 
