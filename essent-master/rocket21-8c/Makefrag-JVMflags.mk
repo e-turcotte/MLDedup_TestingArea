@@ -1,0 +1,1 @@
+JVM_FLAGS = -Xmx16G -Xss10M
