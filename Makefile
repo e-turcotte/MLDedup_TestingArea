@@ -15,6 +15,7 @@ DESIGNS = \
 SIMS = \
 	essent-master \
 	essent-dedup \
+	essent-mldedup \
 
 
 
