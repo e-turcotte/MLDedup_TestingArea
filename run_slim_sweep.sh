@@ -11,8 +11,12 @@
 #
 # Env overrides:
 #   MAX_RANK              Ranks 1..MAX_RANK (default: 5)
-#   PARALLEL              make -j for prepare (default: nproc)
-#   MEASURE_MAX_CONCURRENT_RUNS  (default: 1)
+#   PARALLEL              Total thread budget to spread across concurrent design builds (default: nproc).
+#                         Each make uses: make -j $((PARALLEL / DESIGN_PARALLEL)) (minimum 1).
+#   DESIGN_PARALLEL       Max concurrent prepare_* / compile_essent_* invocations (default: number of designs).
+#                         On a 64-thread machine, defaults fan out all designs with ~10 jobs each (when 6 designs).
+#                         On a small box, set DESIGN_PARALLEL=1 to run one design at a time with make -j$PARALLEL.
+#   MEASURE_MAX_CONCURRENT_RUNS  (default: 1; raise cautiously — overlaps with heavy make/CPU use)
 #   MLDEDUP_BENCHMARK_NAMES / BENCHMARKS   (BENCHMARKS is alias for export)
 #   MLDEDUP_PARALLEL_CPUS / PARALLEL_CPUS
 #
@@ -40,7 +44,35 @@ DESIGNS=(
     boom21-small boom21-2small
     boom21-large boom21-2large
 )
+NUM_DESIGNS=${#DESIGNS[@]}
+# Concurrent make targets (prepare_*/compile_essent_*); cap to number of designs
+DESIGN_PARALLEL="${DESIGN_PARALLEL:-$NUM_DESIGNS}"
+(( DESIGN_PARALLEL < 1 )) && DESIGN_PARALLEL=1
+(( DESIGN_PARALLEL > NUM_DESIGNS )) && DESIGN_PARALLEL="$NUM_DESIGNS"
+JOBS_PER_DESIGN=$(( PARALLEL / DESIGN_PARALLEL ))
+(( JOBS_PER_DESIGN < 1 )) && JOBS_PER_DESIGN=1
+
 DESIGNS_CSV="$(IFS=,; echo "${DESIGNS[*]}")"
+
+# Run up to DESIGN_PARALLEL make subprocesses; each does make -jJOBS_PER_DESIGN <target> (optional ESSENT_JAR=)
+parallel_make_designs() {
+    local mk_prefix=$1
+    local jar_opt=${2:-}
+    local count=0
+    for d in "${DESIGNS[@]}"; do
+        echo "  ${mk_prefix}_${d} ..."
+        (
+            cd "$ESSENT_MLDEDUP"
+            if [[ -n "$jar_opt" ]]; then
+                make -j"$JOBS_PER_DESIGN" "${mk_prefix}_${d}" "ESSENT_JAR=$jar_opt"
+            else
+                make -j"$JOBS_PER_DESIGN" "${mk_prefix}_${d}"
+            fi
+        ) &
+        ((++count % DESIGN_PARALLEL == 0)) && wait
+    done
+    wait
+}
 
 # Throughput matrix (passed to Python; see settings.get_throughput_settings)
 export MLDEDUP_BENCHMARK_NAMES="${BENCHMARKS:-${MLDEDUP_BENCHMARK_NAMES:-vvadd}}"
@@ -53,6 +85,7 @@ ARCHIVE_ROOT="$SCRIPT_DIR/archive/slim_sweep/$TIMESTAMP"
 echo "=== Slim sweep ==="
 echo "    Jars:       $JAR_DIR/essent-{1..$MAX_RANK}.jar"
 echo "    Designs:    ${DESIGNS[*]}"
+echo "    make:       PARALLEL=$PARALLEL DESIGN_PARALLEL=$DESIGN_PARALLEL → make -j$JOBS_PER_DESIGN per design"
 echo "    Benchmarks: $MLDEDUP_BENCHMARK_NAMES"
 echo "    Host par:   $MLDEDUP_PARALLEL_CPUS"
 echo "    Archive:    $ARCHIVE_ROOT"
@@ -75,12 +108,8 @@ fi
 
 # Prepare once
 echo "=== Step 1: Prepare designs ==="
-cd "$ESSENT_MLDEDUP"
-mkdir -p emulator log
-for d in "${DESIGNS[@]}"; do
-    echo "  prepare_$d ..."
-    make -j"$PARALLEL" "prepare_$d"
-done
+mkdir -p "$ESSENT_MLDEDUP/emulator" "$ESSENT_MLDEDUP/log"
+parallel_make_designs prepare
 cd "$SCRIPT_DIR"
 
 # Per-rank: compile + throughput + archive
@@ -91,11 +120,7 @@ for k in $(seq 1 "$MAX_RANK"); do
 
     echo ""
     echo "=== Rank $k: compile with $JAR ==="
-    cd "$ESSENT_MLDEDUP"
-    for d in "${DESIGNS[@]}"; do
-        echo "  compile_essent_$d ..."
-        make "compile_essent_$d" "ESSENT_JAR=$JAR"
-    done
+    parallel_make_designs compile_essent "$JAR"
     cd "$SCRIPT_DIR"
 
     rm -rf log/throughput_stdout_* log/throughput_time_* log/throughput.log 2>/dev/null || true
@@ -124,6 +149,9 @@ for k in $(seq 1 "$MAX_RANK"); do
         echo "MLDEDUP_BENCHMARK_NAMES: $MLDEDUP_BENCHMARK_NAMES"
         echo "MLDEDUP_PARALLEL_CPUS: $MLDEDUP_PARALLEL_CPUS"
         echo "MEASURE_MAX_CONCURRENT_RUNS: $MEASURE_MAX_CONCURRENT_RUNS"
+        echo "PARALLEL: $PARALLEL"
+        echo "DESIGN_PARALLEL: $DESIGN_PARALLEL"
+        echo "JOBS_PER_DESIGN: $JOBS_PER_DESIGN"
         if command -v sha256sum &>/dev/null; then
             echo "jar_sha256: $(sha256sum "$JAR" | awk '{print $1}')"
         fi
