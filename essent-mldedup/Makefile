@@ -8,9 +8,9 @@ log_dir=$(base_dir)/log
 
 RUN_BENCHMARK = $(benchmark_dir)/dhrystone.riscv
 
-CXX = g++-11
-LINK = g++-11
-AR = gcc-ar-11
+CXX = g++
+LINK = g++
+AR = ar
 
 
 # Designs to compile

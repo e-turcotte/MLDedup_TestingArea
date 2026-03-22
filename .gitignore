@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+# macOS AppleDouble / resource fork files (often sit next to tracked .pyc)
+._*
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+.env
+
+# Measurement / sweep outputs (configs use these paths)
+log/
+temp/
+archive/
+sweep.log
+*.log
+
+# Essent compile outputs (reproducible from Makefile + jar)
+**/build/
+**/emulator/
+# Per-tree essent logs from compilation
+essent-mldedup/log/
+essent-master/log/
+essent-dedup/log/
+
+# Copied essent.jar in testing trees (use SysML/jars or symlink instead)
+essent-mldedup/essent.jar
+essent-master/essent.jar
+
+# FIRRTL dumps and RISC-V install prefix from prepare (regenerated)
+*.fir
+**/riscv/
+
+# Do not add riscv-isa-sim/ here if it is a git submodule (use .gitmodules).
+
+# PDFs / figures (uncomment if you do not want them in repo)
+# *.pdf
+
+# Accidental nested copies
+essent-master/essent-master/

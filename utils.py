@@ -9,8 +9,8 @@ import settings
 def parse_exec_cycles(log_filename):
     with open(log_filename) as f:
         for line in f:
-            if len(re.findall("Completed after \d+ cycles", line)) > 0:
-                cycle_count = int(re.findall("\d+", line)[0])
+            if len(re.findall(r"Completed after \d+ cycles", line)) > 0:
+                cycle_count = int(re.findall(r"\d+", line)[0])
                 return cycle_count
     return None
 

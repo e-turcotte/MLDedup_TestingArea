@@ -91,7 +91,8 @@ class ExpRunner:
         # print(task)
         self.task_running_lock.acquire()
         self.log.debug(f"Start task {task_id}")
-        p = subprocess.Popen(task, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        p = subprocess.Popen(task, shell=True, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              preexec_fn=preexec_setpgid)
         self.task_proc[task_id] = p
         self.task_running.add(task_id)
@@ -104,21 +105,38 @@ class ExpRunner:
         for f in self.futures:
             f.cancel()
 
-        # Kill all simulators (process group)
+        # Kill all simulators (process group): SIGTERM first, then SIGKILL so they actually exit
         time.sleep(0.2)
         self.task_running_lock.acquire()
-        for task_id in self.task_running:
+        for task_id in list(self.task_running):
             p = self.task_proc[task_id]
+            if p is None:
+                continue
             try:
                 os.killpg(p.pid, signal.SIGTERM)
-                # p.terminate()
+            except (ProcessLookupError, PermissionError) as e:
+                pass
             except Exception as e:
-                print(e)
-                print(f"Failed to kill process with PID {p.pid}")
+                self.log.debug("killpg SIGTERM: %s", e)
         self.task_running_lock.release()
 
-        # Shutdown the executor
-        self.executor.shutdown(wait=True, cancel_futures=True)
+        time.sleep(0.5)
+        self.task_running_lock.acquire()
+        for task_id in list(self.task_running):
+            p = self.task_proc[task_id]
+            if p is None:
+                continue
+            try:
+                if p.poll() is None:
+                    os.killpg(p.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            except Exception as e:
+                self.log.debug("killpg SIGKILL: %s", e)
+        self.task_running_lock.release()
+
+        # Shutdown executor without waiting forever for workers stuck in wait()
+        self.executor.shutdown(wait=False, cancel_futures=True)
 
 
 
