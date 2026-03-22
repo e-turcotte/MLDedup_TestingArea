@@ -10,7 +10,8 @@
 # Run from MLDedup_TestingArea/.
 #
 # Env overrides:
-#   MAX_RANK              Ranks 1..MAX_RANK (default: 5)
+#   MIN_RANK              First rank to run (default: 1). Use e.g. MIN_RANK=2 after rank 1 is done.
+#   MAX_RANK              Last rank to run (default: 5). Ranks MIN_RANK..MAX_RANK inclusive.
 #   PARALLEL              Total thread budget to spread across concurrent design builds (default: nproc).
 #                         Each make uses: make -j $((PARALLEL / DESIGN_PARALLEL)) (minimum 1).
 #   DESIGN_PARALLEL       Max concurrent prepare_* / compile_essent_* invocations (default: number of designs).
@@ -25,6 +26,9 @@
 #
 # Example — multi-benchmark / multi-parallelism:
 #   BENCHMARKS=vvadd,memcpy MLDEDUP_PARALLEL_CPUS=1,4,12 ./run_slim_sweep.sh
+#
+# Example — only ranks 2–5 (skip rank 1 prepare/compile/measure for that sweep):
+#   MIN_RANK=2 MAX_RANK=5 ./run_slim_sweep.sh
 
 set -euo pipefail
 
@@ -34,6 +38,7 @@ SYSML="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 JAR_DIR="$SYSML/jars"
 ESSENT_MLDEDUP="$SCRIPT_DIR/essent-mldedup"
+MIN_RANK="${MIN_RANK:-1}"
 MAX_RANK="${MAX_RANK:-5}"
 PARALLEL="${PARALLEL:-$(nproc)}"
 MAX_CONCURRENT="${MEASURE_MAX_CONCURRENT_RUNS:-1}"
@@ -79,11 +84,18 @@ export MLDEDUP_BENCHMARK_NAMES="${BENCHMARKS:-${MLDEDUP_BENCHMARK_NAMES:-vvadd}}
 export MLDEDUP_PARALLEL_CPUS="${PARALLEL_CPUS:-${MLDEDUP_PARALLEL_CPUS:-12}}"
 export MEASURE_MAX_CONCURRENT_RUNS="$MAX_CONCURRENT"
 
+if ! [[ "$MIN_RANK" =~ ^[0-9]+$ ]] || ! [[ "$MAX_RANK" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: MIN_RANK and MAX_RANK must be non-negative integers (got MIN_RANK=$MIN_RANK MAX_RANK=$MAX_RANK)"
+    exit 1
+fi
+(( MIN_RANK < 1 )) && { echo "ERROR: MIN_RANK must be >= 1 (got $MIN_RANK)"; exit 1; }
+(( MAX_RANK < MIN_RANK )) && { echo "ERROR: MAX_RANK must be >= MIN_RANK (got MIN_RANK=$MIN_RANK MAX_RANK=$MAX_RANK)"; exit 1; }
+
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 ARCHIVE_ROOT="$SCRIPT_DIR/archive/slim_sweep/$TIMESTAMP"
 
 echo "=== Slim sweep ==="
-echo "    Jars:       $JAR_DIR/essent-{1..$MAX_RANK}.jar"
+echo "    Ranks:      $MIN_RANK..$MAX_RANK  (jars: $JAR_DIR/essent-${MIN_RANK}.jar … essent-${MAX_RANK}.jar)"
 echo "    Designs:    ${DESIGNS[*]}"
 echo "    make:       PARALLEL=$PARALLEL DESIGN_PARALLEL=$DESIGN_PARALLEL → make -j$JOBS_PER_DESIGN per design"
 echo "    Benchmarks: $MLDEDUP_BENCHMARK_NAMES"
@@ -91,8 +103,8 @@ echo "    Host par:   $MLDEDUP_PARALLEL_CPUS"
 echo "    Archive:    $ARCHIVE_ROOT"
 echo ""
 
-# Preflight: jars
-for k in $(seq 1 "$MAX_RANK"); do
+# Preflight: jars for the ranks we will run
+for k in $(seq "$MIN_RANK" "$MAX_RANK"); do
     JAR="$JAR_DIR/essent-${k}.jar"
     if [[ ! -f "$JAR" ]]; then
         echo "ERROR: jar not found: $JAR"
@@ -113,7 +125,7 @@ parallel_make_designs prepare
 cd "$SCRIPT_DIR"
 
 # Per-rank: compile + throughput + archive
-for k in $(seq 1 "$MAX_RANK"); do
+for k in $(seq "$MIN_RANK" "$MAX_RANK"); do
     JAR="$JAR_DIR/essent-${k}.jar"
     RANK_ARCHIVE="$ARCHIVE_ROOT/rank${k}"
     mkdir -p "$RANK_ARCHIVE"
