@@ -237,8 +237,13 @@ def get_simulator_path(simulator, design, hasActivityDump = False):
 
     simName = simulatorToInternalNames[simulator]
     simulator_name = f"emulator_{simName}_activity_dump_{design}" if hasActivityDump else f"emulator_{simName}_{design}"
-    simulator_path = f"./{simulatorToDirectory[simulator]}/emulator/{simulator_name}"
-
+    subdir = simulatorToDirectory[simulator]
+    rank = os.environ.get("MLDEDUP_ESSENT_RANK", "").strip()
+    if rank and not hasActivityDump:
+        ranked_path = f"./{subdir}/emulator/{simulator_name}_r{rank}"
+        if os.path.exists(ranked_path):
+            return ranked_path
+    simulator_path = f"./{subdir}/emulator/{simulator_name}"
     if os.path.exists(simulator_path):
         return simulator_path
     return None

@@ -213,6 +213,8 @@ def get_throughput_settings():
     elif os.environ.get("MLDEDUP_SLIM_SWEEP"):
         # Narrow benchmark / host-parallelism lists; defaults match minimal slim experiment.
         # Cartesian product: designs × effective_benchmarks × effective_parallel_cpus
+        # Ranked emulators: run_benchmarks.sh / measure_throughput sets MLDEDUP_ESSENT_RANK so
+        # configs.get_simulator_path resolves emulator_essent_<design>_r<k> and log names get _r<k>.
         valid_bench = set(benchmarks_to_consider)
         raw_b = os.environ.get("MLDEDUP_BENCHMARK_NAMES", "vvadd").strip()
         if not raw_b:

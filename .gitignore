@@ -33,7 +33,9 @@ essent-master/essent.jar
 *.fir
 **/riscv/
 
-# Do not add riscv-isa-sim/ here if it is a git submodule (use .gitmodules).
+# Submodule directories — prevent accidental staging
+essent-dedup/
+essent-mldedup/*/riscv-isa-sim
 
 # PDFs / figures (uncomment if you do not want them in repo)
 # *.pdf

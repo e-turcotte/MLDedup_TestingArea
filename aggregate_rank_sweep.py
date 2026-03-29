@@ -10,8 +10,9 @@ Usage:
 
     It contains rank1/, rank2/, ... each with:
         throughput_logs/throughput_stdout_mldedup_<design>_<bench>_<ncpus>_<runid>.log
-        throughput_logs/throughput_time_mldedup_<design>_<bench>_<ncpus>_<runid>.log
-        essent_logs/essent_<design>.log
+        throughput_logs/throughput_stdout_mldedup_<design>_r<rank>_<bench>_<ncpus>_<runid>.log (rank infix)
+        throughput_logs/throughput_time_mldedup_... (same basename pattern as stdout)
+        essent_logs/essent_<design>.log or essent_<design>_r<rank>.log
 
 Output:
     - CSV to stdout: design, rank, geo_mean_cycles, geo_mean_elapsed_s, n_datapoints
@@ -65,6 +66,7 @@ def geometric_mean(values):
 def parse_log_filename(name):
     """
     Parse throughput_stdout_mldedup_<design>_<bench>_<ncpus>_<runid>.log
+    or throughput_stdout_mldedup_<design>_r<rank>_<bench>_<ncpus>_<runid>.log
     Returns (design, benchmark, ncpus, runid) or None.
     """
     prefix = "throughput_stdout_mldedup_"
@@ -72,7 +74,7 @@ def parse_log_filename(name):
         return None
     body = name[len(prefix):-len(".log")]
 
-    # Last two segments are <ncpus>_<runid>; everything before is <design>_<bench>
+    # Last two segments are <ncpus>_<runid>; everything before is <design>_<bench> or <design>_rK_<bench>
     parts = body.rsplit("_", 2)
     if len(parts) < 3:
         return None
@@ -89,7 +91,13 @@ def parse_log_filename(name):
     if not m:
         return None
     bench = m.group(1)
-    design = design_bench[: m.start()]
+    design_raw = design_bench[: m.start()]
+
+    rm = re.match(r"^(.+)_r(\d+)$", design_raw)
+    if rm:
+        design = rm.group(1)
+    else:
+        design = design_raw
 
     return design, bench, ncpus, runid
 
@@ -104,7 +112,11 @@ def check_clamped_ranks(archive_root, ranks):
         for fname in os.listdir(essent_dir):
             if not fname.startswith("essent_") or not fname.endswith(".log"):
                 continue
-            design = fname[len("essent_"):-len(".log")]
+            m = re.match(r"^essent_(.+)_r\d+\.log$", fname)
+            if m:
+                design = m.group(1)
+            else:
+                design = fname[len("essent_"):-len(".log")]
             path = os.path.join(essent_dir, fname)
             try:
                 with open(path) as f:

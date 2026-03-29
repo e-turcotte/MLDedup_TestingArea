@@ -20,6 +20,11 @@ _shutdown_requested = False
 _pool_executor = None
 
 
+def _essent_rank_log_infix():
+    r = os.environ.get("MLDEDUP_ESSENT_RANK", "").strip()
+    return f"_r{r}" if r else ""
+
+
 loggerList = [
     "Runner",
     "Tasks"
@@ -77,8 +82,9 @@ def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterat
     for iter in range(0, iterations):
         for emu_id, emu in enumerate(temp_sims):
             run_id = iter * parallel_cpus + emu_id
-            log_stdout_filename = f"throughput_stdout_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
-            log_time_filename = f"throughput_time_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            rk = _essent_rank_log_infix()
+            log_stdout_filename = f"throughput_stdout_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            log_time_filename = f"throughput_time_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
             time_path = os.path.join(base_temp_dir, log_time_filename)
             stdout_path = os.path.join(base_temp_dir, log_stdout_filename)
             cmd = f"/usr/bin/time -o {time_path} {emu} -c {benchmark_path} > {stdout_path} 2>&1"
