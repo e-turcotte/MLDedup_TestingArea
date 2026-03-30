@@ -39,10 +39,8 @@ DESIGNS = \
 
 # Compile essent
 ESSENT_JAR = essent.jar
-
-
-
-
+# When non-empty, install emulator as emulator_essent_<design>_r<ESSENT_RANK> (and matching essent log).
+ESSENT_RANK ?=
 
 MAKE_VARIABLES = ESSENT_JAR=$(ESSENT_JAR) CXX=$(CXX) LINK=$(LINK) AR=$(AR)
 
@@ -66,8 +64,13 @@ COMPILE_EMULATOR_ESSENT_TARGETS := $(foreach i,$(DESIGNS),compile_essent_$i)
 
 ${COMPILE_EMULATOR_ESSENT_TARGETS}: compile_essent_%:
 	$(MAKE) -C $(build_dir)/$(design) -f Makefile-emulator.mk $(MAKE_VARIABLES) emulator_essent
-	cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)
-	cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design).log
+	@if [ -n "$(strip $(ESSENT_RANK))" ]; then \
+		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)_r$(ESSENT_RANK); \
+		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design)_r$(ESSENT_RANK).log; \
+	else \
+		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design); \
+		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design).log; \
+	fi
 
 
 CLEAN_ESSENT_TARGETS := $(foreach j,$(DESIGNS),clean_essent_$j)
