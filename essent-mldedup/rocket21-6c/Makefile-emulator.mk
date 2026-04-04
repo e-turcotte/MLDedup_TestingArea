@@ -6,7 +6,7 @@ include Makefrag-variables.mk
 riscv/lib/libfesvr.a:
 	mkdir -p $(riscv_dir)
 	cd riscv-isa-sim && (grep -q '<cstdint>' fesvr/device.h || sed -i '/#include <functional>/a#include <cstdint>' fesvr/device.h)
-	cd riscv-isa-sim && mkdir -p build && cd build && ../configure --prefix=$(riscv_dir) --target=riscv64-unknown-elf --without-boost --without-boost-asio --without-boost-regex
+	cd riscv-isa-sim && mkdir -p build && cd build && CXX=$(CXX) ../configure --prefix=$(riscv_dir) --target=riscv64-unknown-elf --without-boost --without-boost-asio --without-boost-regex
 	$(MAKE) -s -C riscv-isa-sim/build libfesvr.a
 	$(MAKE) -s -C riscv-isa-sim/build install-hdrs install-config-hdrs
 	mkdir -p $(riscv_dir)/lib

@@ -1,1 +1,0 @@
-JVM_FLAGS = -Xms8G -Xmx8G -Xss10M
