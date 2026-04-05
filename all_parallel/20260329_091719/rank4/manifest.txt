@@ -1,0 +1,8 @@
+rank: 4
+jar: /misc/scratch/ym7845/jars/essent-4.jar
+timestamp: 2026-03-30T06:21:47-05:00
+designs: rocket21-1c rocket21-2c boom21-small boom21-2small boom21-large boom21-2large
+MLDEDUP_BENCHMARK_NAMES: memcpy,qsort
+MLDEDUP_PARALLEL_CPUS: 1,2,4,8,12,16
+MEASURE_MAX_CONCURRENT_RUNS: 1
+jar_sha256: 56277e685f1572fef0b25c5b37131a5d1b109dc6745cf9c0a6d4bfbe7c1e4dd7

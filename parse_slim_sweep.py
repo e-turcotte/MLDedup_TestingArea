@@ -3,13 +3,21 @@
 Parse slim_sweep logs into a labeled CSV for ML input.
 
 Columns: rank_chosen, cpu, benchmark, cycle_count, wall_time_s
+
+Usage:
+    python3 parse_slim_sweep.py [SWEEP_DIR]
+
+    Default SWEEP_DIR: <repo>/archive/slim_sweep
+    Accepts either layout:
+      - SWEEP_DIR/<any>/rank*/manifest.txt   (nested runs)
+      - SWEEP_DIR/rank*/manifest.txt         (e.g. all_parallel/20260329_091719/)
 """
 
 import csv
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 
 SWEEP_DIR = Path(__file__).parent / "archive" / "slim_sweep"
@@ -64,9 +72,22 @@ def parse_rank(manifest: Path) -> Optional[int]:
     return None
 
 
+def iter_manifest_paths(sweep_dir: Path) -> List[Path]:
+    """Manifests under nested runs or directly under sweep_dir (timestamp folder)."""
+    seen: Set[Path] = set()
+    out: List[Path] = []
+    for pattern in ("*/rank*/manifest.txt", "rank*/manifest.txt"):
+        for p in sweep_dir.glob(pattern):
+            key = p.resolve()
+            if key not in seen:
+                seen.add(key)
+                out.append(p)
+    return sorted(out, key=lambda x: str(x))
+
+
 def collect_rows(sweep_dir: Path) -> List[Dict[str, Any]]:
     rows = []
-    for manifest in sorted(sweep_dir.glob("*/rank*/manifest.txt")):
+    for manifest in iter_manifest_paths(sweep_dir):
         rank_dir = manifest.parent
         rank = parse_rank(manifest)
         if rank is None:
@@ -112,11 +133,12 @@ def collect_rows(sweep_dir: Path) -> List[Dict[str, Any]]:
 
 
 def main():
-    if not SWEEP_DIR.is_dir():
-        print(f"ERROR: sweep directory not found: {SWEEP_DIR}", file=sys.stderr)
+    sweep_dir = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else SWEEP_DIR
+    if not sweep_dir.is_dir():
+        print(f"ERROR: sweep directory not found: {sweep_dir}", file=sys.stderr)
         sys.exit(1)
 
-    rows = collect_rows(SWEEP_DIR)
+    rows = collect_rows(sweep_dir)
     if not rows:
         print("ERROR: no data parsed", file=sys.stderr)
         sys.exit(1)

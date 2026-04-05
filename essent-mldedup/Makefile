@@ -63,13 +63,16 @@ design = $(firstword $(subst _, ,$*))
 COMPILE_EMULATOR_ESSENT_TARGETS := $(foreach i,$(DESIGNS),compile_essent_$i)
 
 ${COMPILE_EMULATOR_ESSENT_TARGETS}: compile_essent_%:
+	rm -f $(build_dir)/$(design)/TestHarness.h $(build_dir)/$(design)/dedup_features.csv $(build_dir)/$(design)/emulator_essent
 	$(MAKE) -C $(build_dir)/$(design) -f Makefile-emulator.mk $(MAKE_VARIABLES) emulator_essent
 	@if [ -n "$(strip $(ESSENT_RANK))" ]; then \
 		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)_r$(ESSENT_RANK); \
 		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design)_r$(ESSENT_RANK).log; \
+		cp $(build_dir)/$(design)/dedup_features.csv $(log_dir)/dedup_features_$(design)_r$(ESSENT_RANK).csv; \
 	else \
 		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design); \
 		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design).log; \
+		cp $(build_dir)/$(design)/dedup_features.csv $(log_dir)/dedup_features_$(design).csv; \
 	fi
 
 

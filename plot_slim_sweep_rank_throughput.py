@@ -16,8 +16,6 @@ Examples:
 By default only ranks 1–5 are included (--min-rank 1 --max-rank 5).
 """
 
-from __future__ import annotations
-
 import argparse
 import colorsys
 import csv
@@ -25,7 +23,7 @@ import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import DefaultDict, Dict, List, Sequence, Tuple
+from typing import DefaultDict, Dict, List, Optional, Sequence, Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -91,7 +89,7 @@ def series_for_cpu(
     return ranks, means
 
 
-def pct_diff_lowest_to_highest(values: Sequence[float]) -> float | None:
+def pct_diff_lowest_to_highest(values: Sequence[float]) -> Optional[float]:
     """Percent by which the maximum exceeds the minimum: 100 * (max - min) / min."""
     if not values:
         return None

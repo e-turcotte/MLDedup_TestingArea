@@ -131,5 +131,19 @@ for k in $(seq "$MIN_RANK" "$MAX_RANK"); do
 done
 
 echo ""
+echo "=== Merging per-run dedup feature CSVs ==="
+COMBINED="$ESSENT_MLDEDUP/log/dedup_features_all.csv"
+FIRST_CSV="$(ls "$ESSENT_MLDEDUP/log"/dedup_features_*.csv 2>/dev/null | head -1)"
+if [[ -n "$FIRST_CSV" ]]; then
+    head -1 "$FIRST_CSV" > "$COMBINED"
+    for f in "$ESSENT_MLDEDUP/log"/dedup_features_*.csv; do
+        tail -n +2 "$f" >> "$COMBINED"
+    done
+    echo "Combined features CSV: $COMBINED ($(tail -n +2 "$COMBINED" | wc -l) data rows)"
+else
+    echo "WARNING: no dedup_features_*.csv files found in $ESSENT_MLDEDUP/log/"
+fi
+
+echo ""
 echo "=== compile_emulators complete ==="
 echo "Binaries under $ESSENT_MLDEDUP/emulator/ matching emulator_essent_*_r<rank>"
