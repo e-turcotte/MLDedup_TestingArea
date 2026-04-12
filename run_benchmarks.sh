@@ -17,7 +17,7 @@ usage() {
     echo "Usage: $0 --benchmarks NAMES [--parallel-cpus LIST] [--min-rank K] [--max-rank K]"
     echo "          [--designs CSV] [--archive DIR] [--max-concurrent N]"
     echo ""
-    echo "  --benchmarks     Comma-separated short names (vvadd, memcpy, matmul, …)"
+    echo "  --benchmarks     Comma-separated short names (vvadd, multiply, memcpy, mm, qsort, spmv, rsort, dhrystone, median, towers)"
     echo "  --parallel-cpus   Comma-separated ints (default: 12)"
     echo "  --min-rank/--max-rank  Inclusive rank range matching essent-<k>.jar / emulator names (default 0..10)"
     echo "  --designs         Comma-separated designs (default: slim six)"

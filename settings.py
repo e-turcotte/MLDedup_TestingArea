@@ -9,8 +9,8 @@ import configs
 # Configuration start
 #####################
 
-# throughput: 8 benchmarks; each design runs Nt-{bench} where N = design cores (1c→1t, 2c→2t, ...)
-benchmarks_to_consider = ["vvadd", "multiply", "matmul", "memcpy", "mm", "qsort", "spmv", "rsort"]
+# throughput: single-threaded benchmarks only (mt-* variants have baseline failures)
+benchmarks_to_consider = ["vvadd", "multiply", "memcpy", "mm", "qsort", "spmv", "rsort", "dhrystone", "median", "towers"]
 # Note: Affects simulation parallelism.
 parallel_cpus = [1, 4, 8, 12]
 # Number of run configs to execute in parallel (override with MEASURE_MAX_CONCURRENT_RUNS).
@@ -178,9 +178,8 @@ def get_monitor_settings():
     ret = []
     for sim in monitor_simulators:
         for design in monitor_designs:
-            design_cores = configs.design_cores[design]
             for bench in benchmarks_to_consider:
-                benchmark = f"{design_cores}t-{bench}"
+                benchmark = f"st-{bench}"
                 ret.append((sim, design, benchmark, monitor_iterations))
     return ret
 
@@ -192,9 +191,8 @@ def get_perf_settings():
     ret = []
     for sim in perf_simulators:
         for design in perf_designs:
-            design_cores = configs.design_cores[design]
             for bench in benchmarks_to_consider:
-                benchmark = f"{design_cores}t-{bench}"
+                benchmark = f"st-{bench}"
                 ret.append((sim, design, benchmark, perf_iterations))
     return ret
 
@@ -254,11 +252,9 @@ def get_throughput_settings():
 
     for sim in sims:
         for design in tested_designs:
-            design_cores = configs.design_cores[design]
             for bench in effective_benchmarks:
-                benchmark = f"{design_cores}t-{bench}"
                 for ncpus in effective_parallel_cpus:
-                    ret.append((sim, design, benchmark, ncpus, iterations))
+                    ret.append((sim, design, bench, ncpus, iterations))
 
     return ret
 

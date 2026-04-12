@@ -58,7 +58,7 @@ def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterat
         return False
 
     log = logging.getLogger("Runner")
-    benchmark_path = configs.benchmarks[benchmark_name]
+    benchmark_path = configs.get_benchmark_path(benchmark_name, design)
     log_files = []
     startTime = time.time()
 
@@ -100,7 +100,8 @@ def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterat
 
     essential_task_ids = list(range(0, len(task_lists)))
     task_executor = execloop.ExpRunner(
-        task_lists + placeholder_tasks, essential_task_ids, parallel_cpus, exit_on_failure=False
+        task_lists + placeholder_tasks, essential_task_ids, parallel_cpus,
+        exit_on_failure=False, timeout=kill_after
     )
 
     with _active_executors_lock:
@@ -130,12 +131,7 @@ def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterat
             os.unlink(dst_filename)
         shutil.move(src_path, configs.log_dir)
 
-    if not run_ok:
-        run_tag = f" [run_{run_index}]" if run_index is not None else ""
-        log.info(f"Run finished with failures{run_tag}")
-        return False
-
-    # clean up temp copies and run temp dir
+    # Clean up temp emulator copies regardless of success/failure
     for ef in temp_sims:
         try:
             os.unlink(ef)
@@ -146,6 +142,11 @@ def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterat
             shutil.rmtree(run_temp_dir, ignore_errors=True)
         except OSError:
             pass
+
+    if not run_ok:
+        run_tag = f" [run_{run_index}]" if run_index is not None else ""
+        log.info(f"Run finished with failures{run_tag}")
+        return False
 
     endTime = time.time()
     run_tag = f" [run_{run_index}]" if run_index is not None else ""
@@ -252,8 +253,7 @@ if __name__ == "__main__":
                 shutil.rmtree(run_temp_dir, ignore_errors=True)
             except OSError:
                 pass
-            if successful:
-                time.sleep(5)
+            time.sleep(5)
     else:
         executor = ThreadPoolExecutor(max_workers=max_concurrent)
         _pool_executor = executor

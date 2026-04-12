@@ -9,8 +9,19 @@ log_dir = os.path.join(base_dir, "log/")
 benchmark_dir = os.path.join(base_dir, "mt-benchmarks/")
 
 benchmarks = {
+    # Single-threaded benchmarks (bin-1t, non-mt binaries)
     "st-dhrystone": f"{benchmark_dir}bin-1t/dhrystone.riscv",
-    "st-qsort": f"{benchmark_dir}bin-1t/qsort.riscv",
+    "st-median":    f"{benchmark_dir}bin-1t/median.riscv",
+    "st-memcpy":    f"{benchmark_dir}bin-1t/memcpy.riscv",
+    "st-mm":        f"{benchmark_dir}bin-1t/mm.riscv",
+    "st-multiply":  f"{benchmark_dir}bin-1t/multiply.riscv",
+    "st-qsort":     f"{benchmark_dir}bin-1t/qsort.riscv",
+    "st-rsort":     f"{benchmark_dir}bin-1t/rsort.riscv",
+    "st-spmv":      f"{benchmark_dir}bin-1t/spmv.riscv",
+    "st-towers":    f"{benchmark_dir}bin-1t/towers.riscv",
+    "st-vvadd":     f"{benchmark_dir}bin-1t/vvadd.riscv",
+
+    # Multi-threaded benchmarks (mt-* binaries, kept for reference)
     "1t-memcpy": f"{benchmark_dir}bin-1t/mt-memcpy.riscv",
     "2t-memcpy": f"{benchmark_dir}bin-2t/mt-memcpy.riscv",
     "4t-memcpy": f"{benchmark_dir}bin-4t/mt-memcpy.riscv",
@@ -189,7 +200,15 @@ def get_design_pretty_name(design):
 
 benchmark_cores = {
     "st-dhrystone": 1,
+    "st-median": 1,
+    "st-memcpy": 1,
+    "st-mm": 1,
+    "st-multiply": 1,
     "st-qsort": 1,
+    "st-rsort": 1,
+    "st-spmv": 1,
+    "st-towers": 1,
+    "st-vvadd": 1,
     "1t-memcpy": 1,
     "2t-memcpy": 2,
     "4t-memcpy": 4,
@@ -231,6 +250,21 @@ benchmark_cores = {
     "6t-rsort": 6,
     "8t-rsort": 8,
 }
+
+
+def get_benchmark_path(benchmark_name, design):
+    """Return the .riscv binary path matching the design's core count.
+
+    benchmark_name: short name like "vvadd", "qsort", etc. (no st-/Nt- prefix).
+    """
+    cores = design_cores[design]
+    path = f"{benchmark_dir}bin-{cores}t/{benchmark_name}.riscv"
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"Benchmark binary not found: {path} "
+            f"(design={design}, cores={cores}, benchmark={benchmark_name})"
+        )
+    return path
 
 
 def get_simulator_path(simulator, design, hasActivityDump = False):

@@ -2,7 +2,7 @@
 """
 Parse slim_sweep logs into a labeled CSV for ML input.
 
-Columns: rank_chosen, cpu, benchmark, cycle_count, wall_time_s
+Columns: rank_chosen, cpu, benchmark, parallel_cpus, cycle_count, wall_time_s
 
 Usage:
     python3 parse_slim_sweep.py [SWEEP_DIR]
@@ -23,8 +23,12 @@ from typing import Any, Dict, List, Optional, Set
 SWEEP_DIR = Path(__file__).parent / "archive" / "slim_sweep"
 OUTPUT_CSV = Path(__file__).parent / "slim_sweep_data.csv"
 
-# Ranked: ..._mldedup_{design}_r{rank}_{Nt}-{benchmark}_{cpus}_{index}.log
+# Current: ..._mldedup_{design}_r{rank}_{benchmark}_{cpus}_{index}.log
 STDOUT_RE_RANKED = re.compile(
+    r"^throughput_stdout_mldedup_(.+)_r(\d+)_([a-zA-Z]\w*)_(\d+)_(\d+)\.log$"
+)
+# Old ranked (with Nt- prefix): ..._mldedup_{design}_r{rank}_{Nt}-{benchmark}_{cpus}_{index}.log
+STDOUT_RE_RANKED_NT = re.compile(
     r"^throughput_stdout_mldedup_(.+)_r(\d+)_(\d+t)-(.+)_(\d+)_(\d+)\.log$"
 )
 # Legacy (no rank infix): ..._mldedup_{design}_{Nt}-{benchmark}_{cpus}_{index}.log
@@ -102,13 +106,17 @@ def collect_rows(sweep_dir: Path) -> List[Dict[str, Any]]:
         for stdout_log in sorted(logs_dir.glob("throughput_stdout_*.log")):
             m = STDOUT_RE_RANKED.match(stdout_log.name)
             if m:
-                design, _rank_in_name, _nt, benchmark, _cpus, _idx = m.groups()
+                design, _rank_in_name, benchmark, cpus, _idx = m.groups()
             else:
-                m = STDOUT_RE_LEGACY.match(stdout_log.name)
-                if not m:
-                    print(f"WARNING: unexpected filename {stdout_log.name}", file=sys.stderr)
-                    continue
-                design, _nt, benchmark, _cpus, _idx = m.groups()
+                m = STDOUT_RE_RANKED_NT.match(stdout_log.name)
+                if m:
+                    design, _rank_in_name, _nt, benchmark, cpus, _idx = m.groups()
+                else:
+                    m = STDOUT_RE_LEGACY.match(stdout_log.name)
+                    if not m:
+                        print(f"WARNING: unexpected filename {stdout_log.name}", file=sys.stderr)
+                        continue
+                    design, _nt, benchmark, cpus, _idx = m.groups()
             time_log = logs_dir / stdout_log.name.replace("throughput_stdout_", "throughput_time_")
 
             cycle_count = parse_cycles(stdout_log)
@@ -125,6 +133,7 @@ def collect_rows(sweep_dir: Path) -> List[Dict[str, Any]]:
                 "rank_chosen": rank,
                 "cpu": design,
                 "benchmark": benchmark,
+                "parallel_cpus": int(cpus),
                 "cycle_count": cycle_count,
                 "wall_time_s": wall_time,
             })
@@ -143,7 +152,7 @@ def main():
         print("ERROR: no data parsed", file=sys.stderr)
         sys.exit(1)
 
-    fieldnames = ["rank_chosen", "cpu", "benchmark", "cycle_count", "wall_time_s"]
+    fieldnames = ["rank_chosen", "cpu", "benchmark", "parallel_cpus", "cycle_count", "wall_time_s"]
     with OUTPUT_CSV.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

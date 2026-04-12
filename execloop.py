@@ -28,11 +28,12 @@ def preexec_setpgid():
 
     
 class ExpRunner:
-    def __init__(self, tasks, essential_task_ids, parallelism, interval=1, exit_on_failure=True):
+    def __init__(self, tasks, essential_task_ids, parallelism, interval=1, exit_on_failure=True, timeout=None):
         self.tasks = tasks
         self.parallelism = parallelism
         self.interval = interval
         self.exit_on_failure = exit_on_failure
+        self.timeout = timeout
 
         self.task_finished = set()
         self.task_running = set()
@@ -58,7 +59,9 @@ class ExpRunner:
 
 
     def run(self):
-        
+        self._start_time = time.time()
+        self._last_progress_log = self._start_time
+
         # push tasks
         for task_id, task in enumerate(self.tasks):
             future = self.executor.submit(self.run_task, task_id, task)
@@ -74,6 +77,22 @@ class ExpRunner:
                 if not self._kill_all_done:
                     self.kill_all()
                 return False
+
+            now = time.time()
+            elapsed = int(now - self._start_time)
+
+            if self.timeout and elapsed > self.timeout:
+                self.log.error(f"Timeout ({self.timeout}s) exceeded. Killing all tasks.")
+                self.kill_all()
+                return False
+
+            if now - self._last_progress_log >= 60:
+                n_finished = len(self.task_finished)
+                n_essential = len(self.essential_tasks)
+                timeout_str = f"/{self.timeout}s" if self.timeout else ""
+                self.log.info(f"Still running... {elapsed}s elapsed{timeout_str}, "
+                              f"{n_finished}/{n_essential} essential tasks done")
+                self._last_progress_log = now
 
             # is all essential task finished?
             if all(map(lambda x: x in self.task_finished, self.essential_tasks)):
