@@ -1,10 +1,24 @@
 import concurrent.futures
+import sys
 import threading
 import subprocess
 import time
 import os
 import signal
 import logging
+
+# Set by measure_throughput (or other driver) on SIGINT/SIGTERM so ExpRunner.run()
+# exits immediately instead of sleeping, and cooperates with kill_all().
+user_interrupt_event = threading.Event()
+
+
+def request_user_interrupt():
+    user_interrupt_event.set()
+
+
+def wait_interruptible(seconds):
+    """Like time.sleep(seconds), but returns True as soon as user_interrupt_event is set."""
+    return user_interrupt_event.wait(timeout=seconds)
 
 
 def preexec_setpgid():
@@ -14,10 +28,12 @@ def preexec_setpgid():
 
     
 class ExpRunner:
-    def __init__(self, tasks, essential_task_ids, parallelism, interval=1):
+    def __init__(self, tasks, essential_task_ids, parallelism, interval=1, exit_on_failure=True, timeout=None):
         self.tasks = tasks
         self.parallelism = parallelism
         self.interval = interval
+        self.exit_on_failure = exit_on_failure
+        self.timeout = timeout
 
         self.task_finished = set()
         self.task_running = set()
@@ -39,11 +55,13 @@ class ExpRunner:
         # self.procs = []
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=parallelism)
         self.futures = []
-
+        self._kill_all_done = False
 
 
     def run(self):
-        
+        self._start_time = time.time()
+        self._last_progress_log = self._start_time
+
         # push tasks
         for task_id, task in enumerate(self.tasks):
             future = self.executor.submit(self.run_task, task_id, task)
@@ -55,34 +73,63 @@ class ExpRunner:
         #     self.callback()
         
         while True:
-            time.sleep(self.interval)
+            if wait_interruptible(self.interval):
+                if not self._kill_all_done:
+                    self.kill_all()
+                return False
+
+            now = time.time()
+            elapsed = int(now - self._start_time)
+
+            if self.timeout and elapsed > self.timeout:
+                self.log.error(f"Timeout ({self.timeout}s) exceeded. Killing all tasks.")
+                self.kill_all()
+                return False
+
+            if now - self._last_progress_log >= 60:
+                n_finished = len(self.task_finished)
+                n_essential = len(self.essential_tasks)
+                timeout_str = f"/{self.timeout}s" if self.timeout else ""
+                self.log.info(f"Still running... {elapsed}s elapsed{timeout_str}, "
+                              f"{n_finished}/{n_essential} essential tasks done")
+                self._last_progress_log = now
 
             # is all essential task finished?
             if all(map(lambda x: x in self.task_finished, self.essential_tasks)):
                 self.log.info("All tasks completed. Killing unfinished tasks")
                 self.kill_all()
-                return
+                return True
 
             tasks_finished_in_this_query = []
+            task_failed = False
             self.task_running_lock.acquire()
-            for task_id in self.task_running:
-                p = self.task_proc[task_id]
+            try:
+                for task_id in self.task_running:
+                    p = self.task_proc[task_id]
 
-                if p.poll() is not None:
-                    # complete
-                    tasks_finished_in_this_query.append(task_id)
-                    self.log.info(f"Task {task_id} (pid {p.pid}) has completed.")
+                    if p.poll() is not None:
+                        # complete
+                        tasks_finished_in_this_query.append(task_id)
+                        self.log.info(f"Task {task_id} (pid {p.pid}) has completed.")
 
-                    returncode = p.returncode
-                    if returncode != 0:
-                        self.log.error(f"Task {task_id} (pid {p.pid}) returned error (returncode = {returncode}, cmdline = {self.tasks[task_id]})")
-                        self.kill_all()
-                        exit(-1)
-            for task_id in tasks_finished_in_this_query:
-                self.task_finished.add(task_id)
-                self.task_running.remove(task_id)
-            
-            self.task_running_lock.release()
+                        returncode = p.returncode
+                        if returncode != 0:
+                            self.log.error(
+                                f"Task {task_id} (pid {p.pid}) returned error (returncode = {returncode}, cmdline = {self.tasks[task_id]})"
+                            )
+                            task_failed = True
+                            break
+                if not task_failed:
+                    for task_id in tasks_finished_in_this_query:
+                        self.task_finished.add(task_id)
+                        self.task_running.remove(task_id)
+            finally:
+                self.task_running_lock.release()
+            if task_failed:
+                self.kill_all()
+                if self.exit_on_failure:
+                    exit(-1)
+                return False
 
 
 
@@ -91,7 +138,8 @@ class ExpRunner:
         # print(task)
         self.task_running_lock.acquire()
         self.log.debug(f"Start task {task_id}")
-        p = subprocess.Popen(task, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        p = subprocess.Popen(task, shell=True, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              preexec_fn=preexec_setpgid)
         self.task_proc[task_id] = p
         self.task_running.add(task_id)
@@ -100,25 +148,50 @@ class ExpRunner:
         p.wait()
 
     def kill_all(self):
+        if self._kill_all_done:
+            return
+        self._kill_all_done = True
         # Cancel all pending tasks in the executor
         for f in self.futures:
             f.cancel()
 
-        # Kill all simulators (process group)
+        # Kill all simulators (process group): SIGTERM first, then SIGKILL so they actually exit
         time.sleep(0.2)
         self.task_running_lock.acquire()
-        for task_id in self.task_running:
+        for task_id in list(self.task_running):
             p = self.task_proc[task_id]
+            if p is None:
+                continue
             try:
                 os.killpg(p.pid, signal.SIGTERM)
-                # p.terminate()
+            except (ProcessLookupError, PermissionError) as e:
+                pass
             except Exception as e:
-                print(e)
-                print(f"Failed to kill process with PID {p.pid}")
+                self.log.debug("killpg SIGTERM: %s", e)
         self.task_running_lock.release()
 
-        # Shutdown the executor
-        self.executor.shutdown(wait=True, cancel_futures=True)
+        time.sleep(0.5)
+        self.task_running_lock.acquire()
+        for task_id in list(self.task_running):
+            p = self.task_proc[task_id]
+            if p is None:
+                continue
+            try:
+                if p.poll() is None:
+                    os.killpg(p.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            except Exception as e:
+                self.log.debug("killpg SIGKILL: %s", e)
+        self.task_running_lock.release()
+
+        # Shutdown executor without waiting forever for workers stuck in wait().
+        # cancel_futures was added in 3.9; 3.6–3.8 only support shutdown(wait=...).
+        # Those releases already got explicit f.cancel() above.
+        kw = {"wait": False}
+        if sys.version_info >= (3, 9):
+            kw["cancel_futures"] = True
+        self.executor.shutdown(**kw)
 
 
 

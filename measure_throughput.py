@@ -1,16 +1,28 @@
 #!/bin/env python3
 
-import os 
-import re
+import os
 import sys
 import time
 import signal
-import psutil
+import threading
 import shutil
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import configs
 import execloop
+
+# For parallel runs: track active ExpRunners so signal handler can kill all.
+_active_executors_lock = threading.Lock()
+_active_executors = set()
+_shutdown_requested = False
+# Main ThreadPoolExecutor when max_concurrent_runs > 1 (must shutdown on interrupt).
+_pool_executor = None
+
+
+def _essent_rank_log_infix():
+    r = os.environ.get("MLDEDUP_ESSENT_RANK", "").strip()
+    return f"_r{r}" if r else ""
 
 
 loggerList = [
@@ -21,6 +33,8 @@ fmtStr = "\u001b[31m[%(asctime)s]\u001b[33m[%(name)s]\u001b[35m[%(levelname)s]\u
 
 
 def logSetup():
+    os.makedirs(configs.log_dir, exist_ok=True)
+    os.makedirs(configs.temp_dir, exist_ok=True)
     for eachLoggerName in loggerList:
         formatter = logging.Formatter(fmtStr)
         handler = logging.StreamHandler()
@@ -37,29 +51,26 @@ def logSetup():
 
 
 
-def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterations = 2, kill_after = 3600):
+def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterations=2, kill_after=3600, run_temp_dir=None, run_index=None):
     simulator_bin_path = configs.get_simulator_path(simulator, design, False)
     if simulator_bin_path is None:
-        # simulator does not exist
         print(f"Test case skipped due to binary not available ({simulator}, {design}, {benchmark_name}, {parallel_cpus})")
         return False
 
-
     log = logging.getLogger("Runner")
-    benchmark_path = configs.benchmarks[benchmark_name]
+    benchmark_path = configs.get_benchmark_path(benchmark_name, design)
     log_files = []
     startTime = time.time()
 
-    # # clear temp dir
-    # cmd = f"rm -rf {configs.temp_dir}*"
-    # print(cmd)
-    # os.system(cmd)
+    base_temp_dir = (run_temp_dir if run_temp_dir is not None else configs.temp_dir).rstrip(os.sep)
+    if run_temp_dir is not None:
+        os.makedirs(run_temp_dir, exist_ok=True)
 
     # Copy simulators so they have different inode, avoid linux kernel shares their code pages
     temp_sims = []
     for i in range(0, parallel_cpus):
         src_path = configs.get_simulator_path(simulator, design, False)
-        dst_path = os.path.join(configs.temp_dir, f"emulator_{simulator}_{design}_{i}")
+        dst_path = os.path.join(base_temp_dir, f"emulator_{simulator}_{design}_{i}")
         temp_sims.append(dst_path)
         shutil.copy(src_path, dst_path)
 
@@ -71,65 +82,149 @@ def run_throughput_test(simulator, design, benchmark_name, parallel_cpus, iterat
     for iter in range(0, iterations):
         for emu_id, emu in enumerate(temp_sims):
             run_id = iter * parallel_cpus + emu_id
-            log_stdout_filename = f"throughput_stdout_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
-            log_time_filename = f"throughput_time_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
-            cmd = f"/usr/bin/time -o {configs.temp_dir}{log_time_filename} {emu} -c {benchmark_path} > {configs.temp_dir}{log_stdout_filename} 2>&1"
+            rk = _essent_rank_log_infix()
+            log_stdout_filename = f"throughput_stdout_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            log_time_filename = f"throughput_time_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            time_path = os.path.join(base_temp_dir, log_time_filename)
+            stdout_path = os.path.join(base_temp_dir, log_stdout_filename)
+            cmd = f"/usr/bin/time -o {time_path} {emu} -c {benchmark_path} > {stdout_path} 2>&1"
             task_lists.append(cmd)
             log_files.append(log_stdout_filename)
             log_files.append(log_time_filename)
 
-    # Fill with placeholder processes. Those processes are only used to put pressure
     placeholder_tasks = []
     for iter in range(0, iterations * 4):
         for emu in temp_sims:
             cmd = f"{emu} {benchmark_path} > /dev/null 2>&1"
             placeholder_tasks.append(cmd)
 
-
     essential_task_ids = list(range(0, len(task_lists)))
+    task_executor = execloop.ExpRunner(
+        task_lists + placeholder_tasks, essential_task_ids, parallel_cpus,
+        exit_on_failure=False, timeout=kill_after
+    )
 
-    global task_executor
-    task_executor = execloop.ExpRunner(task_lists + placeholder_tasks, essential_task_ids, parallel_cpus)
-    task_executor.run()
+    with _active_executors_lock:
+        if _shutdown_requested:
+            return False
+        _active_executors.add(task_executor)
+    try:
+        run_ok = task_executor.run()
+    finally:
+        with _active_executors_lock:
+            _active_executors.discard(task_executor)
 
+    if not run_ok:
+        log.warning(
+            "One or more emulator tasks failed (see Runner ERROR above). "
+            "Moving partial logs and continuing to the next run."
+        )
 
-    # finished
-    task_executor = None
-
-
-    # Move all logs to log dir
+    # Move logs to log dir (all on success; whatever exists on partial failure)
     for ef in log_files:
+        src_path = os.path.join(base_temp_dir, ef)
+        if not os.path.isfile(src_path):
+            continue
         dst_filename = os.path.join(configs.log_dir, ef)
         if os.path.exists(dst_filename):
             log.warning(f"Warning: Log file [{dst_filename}] already exists. Will overwrite!")
             os.unlink(dst_filename)
-        shutil.move(os.path.join(configs.temp_dir, ef), configs.log_dir)
-    # clean up
+        shutil.move(src_path, configs.log_dir)
+
+    # Clean up temp emulator copies regardless of success/failure
     for ef in temp_sims:
-        os.unlink(ef)
+        try:
+            os.unlink(ef)
+        except OSError:
+            pass
+    if run_temp_dir is not None:
+        try:
+            shutil.rmtree(run_temp_dir, ignore_errors=True)
+        except OSError:
+            pass
+
+    if not run_ok:
+        run_tag = f" [run_{run_index}]" if run_index is not None else ""
+        log.info(f"Run finished with failures{run_tag}")
+        return False
 
     endTime = time.time()
-    log.info(f"Took {int(endTime - startTime)}s for this test")
+    run_tag = f" [run_{run_index}]" if run_index is not None else ""
+    log.info(f"Took {int(endTime - startTime)}s for this test{run_tag}")
 
     return True
 
 
 
 
+def _shutdown_measure_pool():
+    global _pool_executor
+    ex = _pool_executor
+    if ex is None:
+        return
+    kw = {"wait": False}
+    if sys.version_info >= (3, 9):
+        kw["cancel_futures"] = True
+    try:
+        ex.shutdown(**kw)
+    except Exception:
+        pass
+
+
 def signal_handler(sig, frame):
-    if task_executor is not None:
-        print("Killing all simulators")
-        task_executor.kill_all()
+    global _shutdown_requested
+    execloop.request_user_interrupt()
+    with _active_executors_lock:
+        if _shutdown_requested:
+            os._exit(130)
+        _shutdown_requested = True
+        snapshot = list(_active_executors)
+    if snapshot:
+        print("Interrupt: stopping simulators and worker pool...", flush=True)
+        for ex in snapshot:
+            try:
+                ex.kill_all()
+            except Exception:
+                pass
     else:
-        print("No simulator running")
-    sys.exit(0)
+        print("Interrupt: stopping worker pool...", flush=True)
+    _shutdown_measure_pool()
+    # Second interrupt: force exit without waiting on stuck threads.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    sys.exit(130)
 
-signal.signal(signal.SIGINT, signal_handler)
+
+def _install_interrupt_handlers():
+    signal.signal(signal.SIGINT, signal_handler)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, signal_handler)
+
+
+_install_interrupt_handlers()
 
 
 
 
 
+
+
+def _run_one(args):
+    run_index, r = args
+    sim, design, benchmark, ncpus, iterations = r
+    logging.getLogger("Tasks").info(f"Start [run_{run_index}]: {str(r)}")
+    run_temp_dir = os.path.join(configs.temp_dir.rstrip(os.sep), f"run_{run_index}")
+    try:
+        return (run_index, r, run_throughput_test(sim, design, benchmark, ncpus, iterations, run_temp_dir=run_temp_dir, run_index=run_index))
+    except Exception as e:
+        logging.getLogger("Runner").exception(f"Run {run_index} failed: {e}")
+        return (run_index, r, False)
+    finally:
+        try:
+            shutil.rmtree(run_temp_dir, ignore_errors=True)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
@@ -138,22 +233,41 @@ if __name__ == "__main__":
     logSetup()
 
     log = logging.getLogger("Tasks")
-
     runs = settings.get_throughput_settings()
+    max_concurrent = getattr(settings, "max_concurrent_runs", 2)
 
     for r in runs:
         log.info(f"{str(r)}")
-    log.info(f"Total {len(runs)} tasks.")
-
+    log.info(f"Total {len(runs)} tasks (max_concurrent_runs={max_concurrent}).")
     log.info("Go!")
 
-    for r in runs:
-        sim, design, benchmark, ncpus, iterations = r
-
-        log.info(f"Start task: {str(r)}")
-        succesful = run_throughput_test(*r)
-        if succesful:
+    if max_concurrent <= 1:
+        for run_index, r in enumerate(runs):
+            if _shutdown_requested:
+                break
+            sim, design, benchmark, ncpus, iterations = r
+            log.info(f"Start task [run_{run_index}]: {str(r)}")
+            run_temp_dir = os.path.join(configs.temp_dir.rstrip(os.sep), f"run_{run_index}")
+            successful = run_throughput_test(sim, design, benchmark, ncpus, iterations, run_temp_dir=run_temp_dir, run_index=run_index)
+            try:
+                shutil.rmtree(run_temp_dir, ignore_errors=True)
+            except OSError:
+                pass
             time.sleep(5)
+    else:
+        executor = ThreadPoolExecutor(max_workers=max_concurrent)
+        _pool_executor = executor
+        try:
+            futures = {executor.submit(_run_one, (run_index, r)): run_index for run_index, r in enumerate(runs)}
+            for future in as_completed(futures):
+                run_index, r, successful = future.result()
+                log.info(f"Finished [run_{run_index}]: {str(r)} success={successful}")
+        finally:
+            _pool_executor = None
+            try:
+                executor.shutdown(wait=not _shutdown_requested)
+            except RuntimeError:
+                pass
 
 
 

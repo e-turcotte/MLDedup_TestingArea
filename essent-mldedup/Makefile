@@ -8,9 +8,9 @@ log_dir=$(base_dir)/log
 
 RUN_BENCHMARK = $(benchmark_dir)/dhrystone.riscv
 
-CXX = g++-11
-LINK = g++-11
-AR = gcc-ar-11
+CXX = g++
+LINK = g++
+AR = ar
 
 
 # Designs to compile
@@ -39,10 +39,8 @@ DESIGNS = \
 
 # Compile essent
 ESSENT_JAR = essent.jar
-
-
-
-
+# When non-empty, install emulator as emulator_essent_<design>_r<ESSENT_RANK> (and matching essent log).
+ESSENT_RANK ?=
 
 MAKE_VARIABLES = ESSENT_JAR=$(ESSENT_JAR) CXX=$(CXX) LINK=$(LINK) AR=$(AR)
 
@@ -65,9 +63,17 @@ design = $(firstword $(subst _, ,$*))
 COMPILE_EMULATOR_ESSENT_TARGETS := $(foreach i,$(DESIGNS),compile_essent_$i)
 
 ${COMPILE_EMULATOR_ESSENT_TARGETS}: compile_essent_%:
+	rm -f $(build_dir)/$(design)/TestHarness.h $(build_dir)/$(design)/dedup_features.csv $(build_dir)/$(design)/emulator_essent
 	$(MAKE) -C $(build_dir)/$(design) -f Makefile-emulator.mk $(MAKE_VARIABLES) emulator_essent
-	cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)
-	cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design).log
+	@if [ -n "$(strip $(ESSENT_RANK))" ]; then \
+		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)_r$(ESSENT_RANK); \
+		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design)_r$(ESSENT_RANK).log; \
+		cp $(build_dir)/$(design)/dedup_features.csv $(log_dir)/dedup_features_$(design)_r$(ESSENT_RANK).csv; \
+	else \
+		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design); \
+		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design).log; \
+		cp $(build_dir)/$(design)/dedup_features.csv $(log_dir)/dedup_features_$(design).csv; \
+	fi
 
 
 CLEAN_ESSENT_TARGETS := $(foreach j,$(DESIGNS),clean_essent_$j)

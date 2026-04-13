@@ -28,6 +28,7 @@
 # “’_’“          hline marker
 
 simulator_markers = {
+    "mldedup": "s",
     "comm": "v",
     "verilator": ".",
     "verilator-nodedup": "|",
@@ -39,6 +40,7 @@ simulator_markers = {
 
 
 simulator_linestyle = {
+    "mldedup": "solid",
     "comm": "solid",
     "verilator": "solid",
     "verilator-nodedup": "dotted",
@@ -49,6 +51,7 @@ simulator_linestyle = {
 }
 
 simulator_colors_rgb = {
+    "mldedup"            : (231, 98, 84),
     "comm"               : (30, 70, 110),
     "verilator"         : (82, 143, 172),
     "verilator-nodedup" : (114, 188, 213),

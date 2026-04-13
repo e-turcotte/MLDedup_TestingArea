@@ -143,7 +143,7 @@ def plot_throughput(filename):
 
                 # print dedup vs essent throughput
 
-                if len(statistic_data['dedup']) > 0 and len(statistic_data['essent']) > 0:
+                if len(statistic_data.get('dedup', [])) > 0 and len(statistic_data.get('essent', [])) > 0:
                     max_x = max(statistic_data['dedup']) / max(statistic_data['essent'])
                     print(f"Dedup vs essent, {design}: best {max_x}x throughput")
 
@@ -157,11 +157,12 @@ def plot_throughput(filename):
     # plt.tick_params(labelcolor='none', which='both', top=False, bottom=False, left=True, right=False)
                 
     legend_sequence = [
-        'Dedup', 
-        'NL', 
-        'PO', 
-        'ESSENT', 
-        'Verilator', 
+        'MLDedup',
+        'Dedup',
+        'NL',
+        'PO',
+        'ESSENT',
+        'Verilator',
         'Verilator - NoDedup',
         'Commercial',
         ]
@@ -170,10 +171,11 @@ def plot_throughput(filename):
     for line, label in zip(lines, labels):
         handle_dict[label] = line
     line_sequence = []
-    for label in legend_sequence:
+    legend_sequence_filtered = [l for l in legend_sequence if l in handle_dict]
+    for label in legend_sequence_filtered:
         line_sequence.append(handle_dict[label])
-    # print(labels)
-    ax.legend(line_sequence, legend_sequence, handletextpad = 0.5, ncols = len(legend_sequence),loc='center', fontsize = base_fontsize, bbox_to_anchor = (-2.45, -0.55))
+    if line_sequence:
+        ax.legend(line_sequence, legend_sequence_filtered, handletextpad=0.5, ncols=len(legend_sequence_filtered), loc='center', fontsize=base_fontsize, bbox_to_anchor=(-2.45, -0.55))
     # ax.axis('off')
 
     fig.supxlabel(x_text, fontsize = base_fontsize+1)

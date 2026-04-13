@@ -9,8 +9,8 @@ import settings
 def parse_exec_cycles(log_filename):
     with open(log_filename) as f:
         for line in f:
-            if len(re.findall("Completed after \d+ cycles", line)) > 0:
-                cycle_count = int(re.findall("\d+", line)[0])
+            if len(re.findall(r"Completed after \d+ cycles", line)) > 0:
+                cycle_count = int(re.findall(r"\d+", line)[0])
                 return cycle_count
     return None
 
@@ -78,16 +78,22 @@ def report_rerun_targets():
 
 
 
+def _essent_rank_log_infix():
+    r = os.environ.get("MLDEDUP_ESSENT_RANK", "").strip()
+    return f"_r{r}" if r else ""
+
+
 def get_throughput_data(simulator, design, benchmark_name, parallel_cpus, iterations = 2):
 
     total_cycles = 0
     total_seconds = 0
+    rk = _essent_rank_log_infix()
 
     for iter in range(0, iterations):
         for emu_id in range(0, parallel_cpus):
             run_id = iter * parallel_cpus + emu_id
-            log_stdout_filename = f"throughput_stdout_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
-            log_time_filename = f"throughput_time_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            log_stdout_filename = f"throughput_stdout_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            log_time_filename = f"throughput_time_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
 
             log_stdout_filepath = os.path.join(configs.log_dir, log_stdout_filename)
             log_time_filepath = os.path.join(configs.log_dir, log_time_filename)
@@ -108,12 +114,13 @@ def get_cat_throughput_data(simulator, design, benchmark_name, parallel_cpus, it
 
     total_cycles = 0
     total_seconds = 0
+    rk = _essent_rank_log_infix()
 
     for iter in range(0, iterations):
         for emu_id in range(0, parallel_cpus):
             run_id = iter * parallel_cpus + emu_id
-            log_stdout_filename = f"cat-throughput_stdout_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
-            log_time_filename = f"cat-throughput_time_{simulator}_{design}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            log_stdout_filename = f"cat-throughput_stdout_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
+            log_time_filename = f"cat-throughput_time_{simulator}_{design}{rk}_{benchmark_name}_{parallel_cpus}_{run_id}.log"
 
             log_stdout_filepath = os.path.join(configs.log_dir, log_stdout_filename)
             log_time_filepath = os.path.join(configs.log_dir, log_time_filename)

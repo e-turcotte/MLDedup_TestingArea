@@ -8,9 +8,9 @@ log_dir=$(base_dir)/log
 
 RUN_BENCHMARK = $(benchmark_dir)/dhrystone.riscv
 
-CXX = g++-11
-LINK = g++-11
-AR = gcc-ar-11
+CXX = g++
+LINK = g++
+AR = ar
 
 
 # Designs to compile
@@ -66,6 +66,7 @@ COMPILE_EMULATOR_ESSENT_TARGETS := $(foreach i,$(DESIGNS),compile_essent_$i)
 
 ${COMPILE_EMULATOR_ESSENT_TARGETS}: compile_essent_%:
 	$(MAKE) -C $(build_dir)/$(design) -f Makefile-emulator.mk $(MAKE_VARIABLES) emulator_essent
+	mkdir -p $(output_dir) $(log_dir)
 	cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)
 	cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design).log
 

@@ -4,13 +4,17 @@ include Makefrag-variables.mk
 
 # build fesvr
 riscv/lib/libfesvr.a:
-	mkdir $(riscv_dir)
-	cd riscv-isa-sim; mkdir build; cd build; ../configure --prefix=$(riscv_dir) --target=riscv64-unknown-elf --without-boost --without-boost-asio --without-boost-regex
-	$(MAKE) -s -C riscv-isa-sim/build install
+	mkdir -p $(riscv_dir)
+	cd riscv-isa-sim && (grep -q '<cstdint>' fesvr/device.h || sed -i '/#include <functional>/a#include <cstdint>' fesvr/device.h)
+	cd riscv-isa-sim && mkdir -p build && cd build && CXX=$(CXX) ../configure --prefix=$(riscv_dir) --target=riscv64-unknown-elf --without-boost --without-boost-asio --without-boost-regex
+	$(MAKE) -s -C riscv-isa-sim/build libfesvr.a
+	$(MAKE) -s -C riscv-isa-sim/build install-hdrs install-config-hdrs
+	mkdir -p $(riscv_dir)/lib
+	cp riscv-isa-sim/build/libfesvr.a $(riscv_dir)/lib/
 	rm -rf riscv-isa-sim/build/
 
 # ESSENT
-TestHarness.h:
+TestHarness.h: $(ESSENT_JAR) $(FIR_PATH)
 	java $(JVM_FLAGS) -cp $(ESSENT_JAR) essent.Driver $(FIR_PATH) -O3 --essent-log-level info > essent.log 2>&1
 
 emulator_essent: emulator_essent.cc TestHarness.h riscv/lib/libfesvr.a

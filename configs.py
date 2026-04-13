@@ -9,8 +9,19 @@ log_dir = os.path.join(base_dir, "log/")
 benchmark_dir = os.path.join(base_dir, "mt-benchmarks/")
 
 benchmarks = {
+    # Single-threaded benchmarks (bin-1t, non-mt binaries)
     "st-dhrystone": f"{benchmark_dir}bin-1t/dhrystone.riscv",
-    "st-qsort": f"{benchmark_dir}bin-1t/qsort.riscv",
+    "st-median":    f"{benchmark_dir}bin-1t/median.riscv",
+    "st-memcpy":    f"{benchmark_dir}bin-1t/memcpy.riscv",
+    "st-mm":        f"{benchmark_dir}bin-1t/mm.riscv",
+    "st-multiply":  f"{benchmark_dir}bin-1t/multiply.riscv",
+    "st-qsort":     f"{benchmark_dir}bin-1t/qsort.riscv",
+    "st-rsort":     f"{benchmark_dir}bin-1t/rsort.riscv",
+    "st-spmv":      f"{benchmark_dir}bin-1t/spmv.riscv",
+    "st-towers":    f"{benchmark_dir}bin-1t/towers.riscv",
+    "st-vvadd":     f"{benchmark_dir}bin-1t/vvadd.riscv",
+
+    # Multi-threaded benchmarks (mt-* binaries, kept for reference)
     "1t-memcpy": f"{benchmark_dir}bin-1t/mt-memcpy.riscv",
     "2t-memcpy": f"{benchmark_dir}bin-2t/mt-memcpy.riscv",
     "4t-memcpy": f"{benchmark_dir}bin-4t/mt-memcpy.riscv",
@@ -26,18 +37,44 @@ benchmarks = {
     "4t-vvadd": f"{benchmark_dir}bin-4t/mt-vvadd.riscv",
     "6t-vvadd": f"{benchmark_dir}bin-6t/mt-vvadd.riscv",
     "8t-vvadd": f"{benchmark_dir}bin-8t/mt-vvadd.riscv",
+    "1t-multiply": f"{benchmark_dir}bin-1t/multiply.riscv",
+    "2t-multiply": f"{benchmark_dir}bin-2t/multiply.riscv",
+    "4t-multiply": f"{benchmark_dir}bin-4t/multiply.riscv",
+    "6t-multiply": f"{benchmark_dir}bin-6t/multiply.riscv",
+    "8t-multiply": f"{benchmark_dir}bin-8t/multiply.riscv",
+    "1t-mm": f"{benchmark_dir}bin-1t/mm.riscv",
+    "2t-mm": f"{benchmark_dir}bin-2t/mm.riscv",
+    "4t-mm": f"{benchmark_dir}bin-4t/mm.riscv",
+    "6t-mm": f"{benchmark_dir}bin-6t/mm.riscv",
+    "8t-mm": f"{benchmark_dir}bin-8t/mm.riscv",
+    "1t-qsort": f"{benchmark_dir}bin-1t/qsort.riscv",
+    "2t-qsort": f"{benchmark_dir}bin-2t/qsort.riscv",
+    "4t-qsort": f"{benchmark_dir}bin-4t/qsort.riscv",
+    "6t-qsort": f"{benchmark_dir}bin-6t/qsort.riscv",
+    "8t-qsort": f"{benchmark_dir}bin-8t/qsort.riscv",
+    "1t-spmv": f"{benchmark_dir}bin-1t/spmv.riscv",
+    "2t-spmv": f"{benchmark_dir}bin-2t/spmv.riscv",
+    "4t-spmv": f"{benchmark_dir}bin-4t/spmv.riscv",
+    "6t-spmv": f"{benchmark_dir}bin-6t/spmv.riscv",
+    "8t-spmv": f"{benchmark_dir}bin-8t/spmv.riscv",
+    "1t-rsort": f"{benchmark_dir}bin-1t/rsort.riscv",
+    "2t-rsort": f"{benchmark_dir}bin-2t/rsort.riscv",
+    "4t-rsort": f"{benchmark_dir}bin-4t/rsort.riscv",
+    "6t-rsort": f"{benchmark_dir}bin-6t/rsort.riscv",
+    "8t-rsort": f"{benchmark_dir}bin-8t/rsort.riscv",
 }
 
 
 
 simulators = [
-    "comm",
-    "verilator",
-    "verilator-nodedup",
+    "mldedup",
+    # "comm",
+    # "verilator",
+    # "verilator-nodedup",
     "essent",
-    "dedup",
-    "po",
-    "dedup-nolocality"
+    # "dedup",
+    # "po",
+    # "dedup-nolocality"
 ]
 
 # simulators_predict = [
@@ -47,6 +84,7 @@ simulators = [
 # ]
 
 simulator_prettyname = {
+    "mldedup": "MLDedup",
     "comm": "Commercial",
     "verilator": "Verilator",
     "verilator-nodedup": "Verilator - NoDedup",
@@ -58,6 +96,7 @@ simulator_prettyname = {
 
 
 simulatorToInternalNames = {
+    "mldedup": "essent",
     "comm": "comm",
     "verilator": "verilator",
     "verilator-nodedup": "verilator",
@@ -67,6 +106,7 @@ simulatorToInternalNames = {
     "dedup-nolocality": "essent"
 }
 simulatorToDirectory = {
+    "mldedup": "essent-mldedup",
     "comm": "comm",
     "verilator": "verilator",
     "verilator-nodedup": "verilator-nodedup",
@@ -160,7 +200,15 @@ def get_design_pretty_name(design):
 
 benchmark_cores = {
     "st-dhrystone": 1,
+    "st-median": 1,
+    "st-memcpy": 1,
+    "st-mm": 1,
+    "st-multiply": 1,
     "st-qsort": 1,
+    "st-rsort": 1,
+    "st-spmv": 1,
+    "st-towers": 1,
+    "st-vvadd": 1,
     "1t-memcpy": 1,
     "2t-memcpy": 2,
     "4t-memcpy": 4,
@@ -176,15 +224,60 @@ benchmark_cores = {
     "4t-vvadd": 4,
     "6t-vvadd": 6,
     "8t-vvadd": 8,
+    "1t-multiply": 1,
+    "2t-multiply": 2,
+    "4t-multiply": 4,
+    "6t-multiply": 6,
+    "8t-multiply": 8,
+    "1t-mm": 1,
+    "2t-mm": 2,
+    "4t-mm": 4,
+    "6t-mm": 6,
+    "8t-mm": 8,
+    "1t-qsort": 1,
+    "2t-qsort": 2,
+    "4t-qsort": 4,
+    "6t-qsort": 6,
+    "8t-qsort": 8,
+    "1t-spmv": 1,
+    "2t-spmv": 2,
+    "4t-spmv": 4,
+    "6t-spmv": 6,
+    "8t-spmv": 8,
+    "1t-rsort": 1,
+    "2t-rsort": 2,
+    "4t-rsort": 4,
+    "6t-rsort": 6,
+    "8t-rsort": 8,
 }
+
+
+def get_benchmark_path(benchmark_name, design):
+    """Return the .riscv binary path matching the design's core count.
+
+    benchmark_name: short name like "vvadd", "qsort", etc. (no st-/Nt- prefix).
+    """
+    cores = design_cores[design]
+    path = f"{benchmark_dir}bin-{cores}t/{benchmark_name}.riscv"
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"Benchmark binary not found: {path} "
+            f"(design={design}, cores={cores}, benchmark={benchmark_name})"
+        )
+    return path
 
 
 def get_simulator_path(simulator, design, hasActivityDump = False):
 
     simName = simulatorToInternalNames[simulator]
     simulator_name = f"emulator_{simName}_activity_dump_{design}" if hasActivityDump else f"emulator_{simName}_{design}"
-    simulator_path = f"./{simulatorToDirectory[simulator]}/emulator/{simulator_name}"
-
+    subdir = simulatorToDirectory[simulator]
+    rank = os.environ.get("MLDEDUP_ESSENT_RANK", "").strip()
+    if rank and not hasActivityDump:
+        ranked_path = f"./{subdir}/emulator/{simulator_name}_r{rank}"
+        if os.path.exists(ranked_path):
+            return ranked_path
+    simulator_path = f"./{subdir}/emulator/{simulator_name}"
     if os.path.exists(simulator_path):
         return simulator_path
     return None
