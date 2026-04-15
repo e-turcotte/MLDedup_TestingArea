@@ -1,6 +1,49 @@
 # MLDedup Simulator Throughput Experiments
 
-Measure and predict the throughput impact of module deduplication in ESSENT-generated hardware simulators.
+Measure and predict the throughput impact of module deduplication in
+ESSENT-generated hardware simulators.
+
+## Why this testing area exists
+
+The ML model in `../MLDedup/model/` needs labelled training data — ground-truth
+measurements of how fast each dedup choice actually runs. Those labels do not
+exist in the compiler; they can only come from **building simulators, running
+real benchmarks, and measuring throughput**. This directory automates that
+entire data-collection loop.
+
+The core question is: *for a given design, which module rank produces the
+fastest simulator?* To answer it, we compile one emulator per rank (0 through
+10), run every emulator against a matrix of benchmarks and host-parallelism
+levels, measure throughput (simulated cycles per wall-clock second), and
+assemble the results into the `regression_dataset.csv` that the training
+pipeline consumes.
+
+Without this infrastructure, there is no way to train or validate the ML model.
+The testing area is the bridge between the compiler (which produces features
+and emulators) and the model (which learns from measured speedups).
+
+## How configuration works
+
+Experiment scope is controlled by two layers:
+
+**`execution/settings.py`** defines the default experiment matrix:
+- `benchmarks_to_consider` — which RISC-V benchmarks to run (e.g. vvadd,
+  qsort, mm). These are single-threaded binaries from `mt-benchmarks/`.
+- `parallel_cpus` — host-side parallelism levels to test (e.g. 1, 4, 8, 12).
+  Higher values mean more simulator threads.
+- `tested_designs` — which chip designs to test (e.g. rocket21-1c, boom21-2large).
+  Overridable via the `MLDEDUP_TEST_DESIGNS` environment variable.
+- `max_concurrent_runs` — how many simulations to run in parallel on the host.
+
+**`execution/run_benchmarks.sh`** CLI flags narrow the matrix for a specific
+run: `--benchmarks`, `--parallel-cpus`, `--designs`, `--min-rank`/`--max-rank`.
+These set environment variables (`MLDEDUP_SLIM_SWEEP`, `MLDEDUP_BENCHMARK_NAMES`,
+etc.) that `settings.py` reads to filter the Cartesian product.
+
+**`execution/configs.py`** maps abstract names to concrete paths: which
+binary to run for a given benchmark, which emulator directory to look in for a
+given simulator type, and how to resolve ranked emulator paths
+(`emulator_essent_<design>_r<rank>`).
 
 ## Directory Layout
 
@@ -74,7 +117,38 @@ Results are archived under `results/<timestamp>/rank*/`.
 python3 analysis/build_dataset.py results/<timestamp>/
 ```
 
-Produces `data/regression_dataset.csv` with one row per (design, rank, benchmark, parallel_cpus) combination, where the target variable is relative speedup vs rank 0.
+Produces `data/regression_dataset.csv` — the file the ML training pipeline
+(`../MLDedup/model/`) consumes. Understanding its structure is important:
+
+**One row = one experiment point.** Each row represents a single
+(design, rank, benchmark, parallel_cpus) combination. For example, running
+6 designs x 10 ranks x 10 benchmarks x 4 parallelism levels produces
+up to 2400 rows.
+
+**How the columns are assembled.** `build_dataset.py` joins two data sources:
+
+1. **Throughput logs** (from step 2) — parsed from the archived
+   `rank*/throughput_logs/` directory. For each combination, the script extracts
+   simulated cycle count and wall-clock time from log files, computes throughput
+   as `cycles / elapsed_seconds`, and takes the median across repeated runs.
+
+2. **Dedup features** (from step 1) — the structural features that the compiler
+   wrote to `data/dedup_features.csv` during compilation. These are the same
+   7 features the ML model uses: `instance_count`, `module_ir_size`,
+   `boundary_signal_count`, `boundary_to_interior_ratio`, `edge_count_within`,
+   `fraction_design_covered`, `original_ir_size`.
+
+The two sources are joined on `(design, rank)`. The key derived column is:
+
+- **`relative_speedup`** = `median_throughput_hz / baseline_throughput_hz`,
+  where the baseline is the rank-0 (no dedup) emulator for the same
+  (design, benchmark, parallel_cpus) group. A value of 1.05 means the
+  ranked emulator is 5% faster than no dedup; 0.95 means 5% slower.
+
+This is the target variable that the ML model learns to predict. The model
+does not need to predict absolute throughput — only *relative* improvement
+over the no-dedup baseline, which controls for benchmark difficulty and
+host-machine speed.
 
 ### 4. Plot rank vs throughput
 
