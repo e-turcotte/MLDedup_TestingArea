@@ -6,6 +6,7 @@ results/
 # Build artifacts
 essent-mldedup/build/
 essent-mldedup/emulator/
+essent-mldedup/*/riscv/
 essent-mldedup/log/
 *.fir
 

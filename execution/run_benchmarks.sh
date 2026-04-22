@@ -57,7 +57,7 @@ fi
 (( MAX_RANK < MIN_RANK )) && { echo "ERROR: --max-rank must be >= --min-rank"; exit 1; }
 
 if [[ -z "$DESIGNS_CSV" ]]; then
-    DESIGNS_CSV="rocket21-1c,rocket21-2c,boom21-small,boom21-2small,boom21-large,boom21-2large"
+    DESIGNS_CSV="rocket21-1c,rocket21-2c,boom21-small,boom21-2small,boom21-large,boom21-2large,rocket21-4c,boom21-4small"
 fi
 
 for k in $(seq "$MIN_RANK" "$MAX_RANK"); do
