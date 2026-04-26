@@ -23,6 +23,15 @@
 #   PARALLEL, DESIGN_PARALLEL — thread fan-out for parallel design builds (light tier).
 #   SKIP_SUBMOD=1          — do not run clone_spike.sh mldedup
 #
+# ESSENT_EXTRA_ARGS handling:
+#   compile_essent_for_jar auto-sets ESSENT_EXTRA_ARGS=--ml-rank whenever the
+#   jar basename is `essent-ml.jar`, so the ML model takes the dedup decision
+#   instead of the heuristic. Per-design Makefile-emulator.mk forwards it to
+#   the `java essent.Driver` invocation. When ESSENT_RANK_SWEEP=1 we also
+#   append one extra `_rml` pass after the integer rank loop (if
+#   essent-ml.jar exists), so a single sweep produces both the heuristic
+#   ranks and the ML pick.
+#
 # Memory-pressure handling for giant generated TestHarness.h files (designs
 # whose generated header is >~200 MB make cc1plus segfault under -O3 +
 # concurrent ESSENT java jobs):
@@ -351,11 +360,23 @@ compile_essent_for_jar() {
         fi
     done
 
+    # The ML jar needs `--ml-rank` on the essent.Driver command line to pick
+    # the model's chosen dedup target. We detect by basename so any caller
+    # (single-jar mode, ESSENT_JAR_STEPS, rank sweep, or the post-sweep ML
+    # pass below) gets the flag forwarded automatically.
+    local extra_essent_args=""
+    if [[ "$(basename "$jar")" == "essent-ml.jar" ]]; then
+        extra_essent_args="--ml-rank"
+    fi
+
     if (( ${#light[@]} > 0 )); then
         echo ""
-        echo "=== Compile $label → _r${rank}  (light tier: ${#light[@]} design(s), par=$DESIGN_PARALLEL${ESSENT_CXX:+, CXX=$ESSENT_CXX}) ==="
+        echo "=== Compile $label → _r${rank}  (light tier: ${#light[@]} design(s), par=$DESIGN_PARALLEL${ESSENT_CXX:+, CXX=$ESSENT_CXX}${extra_essent_args:+, ESSENT_EXTRA_ARGS=$extra_essent_args}) ==="
         RUN_DESIGNS=("${light[@]}")
         local -a light_extra=("ESSENT_JAR=$jar" "ESSENT_RANK=$rank")
+        if [[ -n "$extra_essent_args" ]]; then
+            light_extra+=("ESSENT_EXTRA_ARGS=$extra_essent_args")
+        fi
         if [[ -n "$ESSENT_CXX" ]]; then
             light_extra+=("CXX=$ESSENT_CXX" "LINK=$ESSENT_CXX")
         fi
@@ -365,9 +386,12 @@ compile_essent_for_jar() {
     if (( ${#heavy[@]} > 0 )); then
         local heavy_cxx="${HEAVY_CXX:-$ESSENT_CXX}"
         echo ""
-        echo "=== Compile $label → _r${rank}  (heavy tier: ${#heavy[@]} design(s), par=$HEAVY_DESIGN_PARALLEL, CXX_OPT=${HEAVY_OPT_FLAGS:-<makefile default>}${heavy_cxx:+, CXX=$heavy_cxx}) ==="
+        echo "=== Compile $label → _r${rank}  (heavy tier: ${#heavy[@]} design(s), par=$HEAVY_DESIGN_PARALLEL, CXX_OPT=${HEAVY_OPT_FLAGS:-<makefile default>}${heavy_cxx:+, CXX=$heavy_cxx}${extra_essent_args:+, ESSENT_EXTRA_ARGS=$extra_essent_args}) ==="
         RUN_DESIGNS=("${heavy[@]}")
         local -a heavy_extra=("ESSENT_JAR=$jar" "ESSENT_RANK=$rank")
+        if [[ -n "$extra_essent_args" ]]; then
+            heavy_extra+=("ESSENT_EXTRA_ARGS=$extra_essent_args")
+        fi
         if [[ -n "$HEAVY_OPT_FLAGS" ]]; then
             heavy_extra+=("CXX_OPT=$HEAVY_OPT_FLAGS")
         fi
@@ -485,6 +509,19 @@ elif [[ "$ESSENT_RANK_SWEEP" == "1" ]]; then
         JAR="$JAR_DIR/essent-${k}.jar"
         compile_essent_for_jar "essent-${k}.jar" "$JAR" "$k"
     done
+    # ML jar pseudo-rank: append after the integer sweep so a single sweep
+    # produces both the heuristic ranks (essent-<k>.jar -> _r<k>) and the
+    # ML model's own pick (essent-ml.jar -> _rml). Skipped silently if the
+    # ML jar is not present.
+    ML_JAR="$JAR_DIR/essent-ml.jar"
+    if [[ -f "$ML_JAR" ]]; then
+        echo ""
+        echo "=== Rank sweep complete; appending ML pseudo-rank (essent-ml.jar → _rml) ==="
+        compile_essent_for_jar "essent-ml.jar" "$ML_JAR" "ml"
+    else
+        echo ""
+        echo "Skipping ML pseudo-rank: $ML_JAR not found."
+    fi
 else
     for step in $ESSENT_JAR_STEPS; do
         jf="${step%%:*}"

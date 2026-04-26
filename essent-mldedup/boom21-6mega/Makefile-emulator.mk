@@ -15,7 +15,7 @@ riscv/lib/libfesvr.a:
 
 # ESSENT
 TestHarness.h: $(ESSENT_JAR) $(FIR_PATH)
-	java $(JVM_FLAGS) -cp $(ESSENT_JAR) essent.Driver $(FIR_PATH) -O3 --essent-log-level info > essent.log 2>&1
+	java $(JVM_FLAGS) -cp $(ESSENT_JAR) essent.Driver $(FIR_PATH) -O3 --essent-log-level info $(ESSENT_EXTRA_ARGS) > essent.log 2>&1
 
 emulator_essent: emulator_essent.cc TestHarness.h riscv/lib/libfesvr.a
 	$(CXX) $(CXXFLAGS) $(ESSENT_INCLUDES) emulator_essent.cc -o emulator_essent $(LIBS)

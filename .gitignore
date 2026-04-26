@@ -10,6 +10,13 @@ essent-mldedup/*/riscv/
 essent-mldedup/log/
 *.fir
 
+# Compiled essent jars: ignore everything under jars/ except the ML model jar,
+# which we keep checked in so the ML-rank pathway works out of the box.
+# build_essent_jars.sh regenerates the others (essent-0.jar … essent-10.jar,
+# essent.jar) on demand.
+jars/*.jar
+!jars/essent-ml.jar
+
 # OS / editor
 .DS_Store
 ._*

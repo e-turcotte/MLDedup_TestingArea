@@ -42,6 +42,13 @@ ESSENT_JAR = essent.jar
 # When non-empty, install emulator as emulator_essent_<design>_r<ESSENT_RANK> (and matching essent log).
 ESSENT_RANK ?=
 
+# Optional optimization-level override for the C++ compile step.
+# When set (e.g. CXX_OPT=-O1) we forward an explicit CXXFLAGS to the per-design
+# sub-make so cc1plus does not OOM at -O3 on the giant generated TestHarness.h.
+# Passing CXXFLAGS on the command line replaces the value defined in
+# Makefrag-variables.mk, so we have to reconstruct the include paths.
+CXX_OPT ?=
+
 MAKE_VARIABLES = ESSENT_JAR=$(ESSENT_JAR) CXX=$(CXX) LINK=$(LINK) AR=$(AR)
 
 
@@ -64,7 +71,9 @@ COMPILE_EMULATOR_ESSENT_TARGETS := $(foreach i,$(DESIGNS),compile_essent_$i)
 
 ${COMPILE_EMULATOR_ESSENT_TARGETS}: compile_essent_%:
 	rm -f $(build_dir)/$(design)/TestHarness.h $(build_dir)/$(design)/dedup_features.csv $(build_dir)/$(design)/emulator_essent
-	$(MAKE) -C $(build_dir)/$(design) -f Makefile-emulator.mk $(MAKE_VARIABLES) emulator_essent
+	$(MAKE) -C $(build_dir)/$(design) -f Makefile-emulator.mk $(MAKE_VARIABLES) \
+		$(if $(strip $(CXX_OPT)),CXXFLAGS="$(CXX_OPT) -std=c++17 -I$(build_dir)/$(design)/riscv/include -D__STDC_FORMAT_MACROS",) \
+		emulator_essent
 	@if [ -n "$(strip $(ESSENT_RANK))" ]; then \
 		cp $(build_dir)/$(design)/emulator_essent $(output_dir)/emulator_essent_$(design)_r$(ESSENT_RANK); \
 		cp $(build_dir)/$(design)/essent.log $(log_dir)/essent_$(design)_r$(ESSENT_RANK).log; \
