@@ -1,5 +1,9 @@
 include Makefrag-variables.mk
 
+# Delete the target of any failed recipe so a partial cc1plus / link / java
+# output cannot fool the resume-mode `_is_compiled` check in
+# compilation/compile_emulators.sh into thinking a design is already built.
+.DELETE_ON_ERROR:
 
 
 # build fesvr

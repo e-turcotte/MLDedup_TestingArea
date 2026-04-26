@@ -20,8 +20,12 @@
 #   ESSENT_ONLY_RANK       — suffix for single-jar mode (default: ml)
 #   DESIGNS                — space-separated design names (see default array below).
 #                            Example: DESIGNS="rocket21-1c boom21-small" ./compile_emulators.sh
-#   PARALLEL, DESIGN_PARALLEL — thread fan-out for parallel design builds (light tier).
+#   PARALLEL, DESIGN_PARALLEL — thread fan-out for parallel design builds.
 #   SKIP_SUBMOD=1          — do not run clone_spike.sh mldedup
+#   HEARTBEAT_INTERVAL     — seconds between "still in flight" prints during a
+#                            wave (default: 60). 0 disables.
+#   CLEAN=1                — ignore existing outputs; re-run all prepare and
+#                            compile steps regardless of what already exists.
 #
 # ESSENT_EXTRA_ARGS handling:
 #   compile_essent_for_jar auto-sets ESSENT_EXTRA_ARGS=--ml-rank whenever the
@@ -32,18 +36,51 @@
 #   essent-ml.jar exists), so a single sweep produces both the heuristic
 #   ranks and the ML pick.
 #
-# Memory-pressure handling for giant generated TestHarness.h files (designs
-# whose generated header is >~200 MB make cc1plus segfault under -O3 +
-# concurrent ESSENT java jobs):
-#   HEAVY_DESIGNS              — space-separated names treated as "heavy".
-#                                Default: the BOOMs known to OOM at -O3.
-#   HEAVY_OPT_FLAGS            — opt flags for heavy designs' g++ compile
-#                                (default: "-O1"). Set to "" to keep -O3.
-#   HEAVY_DESIGN_PARALLEL      — concurrency for the heavy tier (default: 1).
-#   HEARTBEAT_INTERVAL         — seconds between "still in flight" prints
-#                                during a wave (default: 60). 0 disables.
-#   CLEAN=1                    — ignore existing outputs; re-run all prepare and
-#                                compile steps regardless of what already exists.
+# Compiler / optimization (single-tier, all designs identical):
+#   ESSENT_CXX             — g++ used for every design's host emulator.
+#                            If unset, auto-detects the newest gcc-toolset g++
+#                            on the host (gcc-toolset-{14,13,12,11}); falls
+#                            back to whatever `g++` is on PATH. RHEL 8's
+#                            system g++ 8.5.0 SIGSEGVs in cc1plus on the giant
+#                            generated TestHarness.h files (recursive parser
+#                            blows the stack), so the toolset g++ matters
+#                            for boom21-* designs.
+#   All designs build with the same opt flags (whatever the per-design
+#   Makefile-emulator.mk default is, typically -O3). For experiments that
+#   compare throughput across designs, mixing -O levels skews the host-side
+#   sim_cycles/sec measurement and is therefore avoided here.
+#
+# DEPRECATED env vars (parsed for back-compat, no longer have any effect):
+#   HEAVY_DESIGNS, HEAVY_OPT_FLAGS, HEAVY_DESIGN_PARALLEL, HEAVY_CXX. The
+#   prior heavy-tier mechanism applied -O1 + a serialized wave to a hand-
+#   picked subset of boom designs to avoid OOM on smaller hosts; on a fat
+#   build host this serialization just slows things down, and the -O1
+#   mismatch makes cross-design throughput comparisons invalid.
+#
+# All-ranks-parallel scheduling (ALL_RANKS_PARALLEL=1):
+#   By default we run one wave per jar (e.g. all 16 designs at rank ml, then
+#   all 16 at rank 1, then all 16 at rank 0). With ALL_RANKS_PARALLEL=1 the
+#   16 × 3 = 48 (design, rank) pairs are fanned out into a single wave so
+#   every (design, rank) make-tree races concurrently — useful on fat hosts
+#   (EPYC w/ 100+ cores and 1 TiB+ RAM). Job dispatch order is ML-first
+#   (left-to-right through ESSENT_JAR_STEPS), so when the concurrency cap is
+#   below 48, the first ML batch grabs the slots and finishes first; this in
+#   turn lets a `run_benchmarks.sh --pipeline` consumer start measuring the
+#   _rml binaries earlier. The wave concurrency cap defaults to "all jobs"
+#   (NJOBS); cap it via DESIGN_PARALLEL=<jobs> if RAM is tight (each job
+#   peaks at ~10–30 GiB during cc1plus on the boom designs). Only effective
+#   in the default ESSENT_JAR_STEPS path; ESSENT_ONLY_JAR / ESSENT_RANK_SWEEP
+#   keep their original wave-per-jar behavior.
+#
+# Pipelining with run_benchmarks.sh:
+#   On exit (success OR failure), this script writes a sentinel file
+#       $ESSENT_MLDEDUP/log/compile_complete.flag
+#   from its EXIT/INT/TERM trap, with `rc=<exit_code>` in the body. A
+#   pipelined consumer (run_benchmarks.sh --pipeline) polls for individual
+#   emulator binaries and uses this sentinel solely to know when the
+#   producer has stopped, so it can give up on any binaries that never
+#   materialised. The flag is removed at the start of each run so a stale
+#   sentinel from a crashed prior run does not confuse the consumer.
 #
 set -euo pipefail
 # Enable job control so each backgrounded job runs in its own process group;
@@ -81,39 +118,44 @@ ESSENT_ONLY_RANK="${ESSENT_ONLY_RANK:-ml}"
 ESSENT_JAR_STEPS="${ESSENT_JAR_STEPS:-essent-ml.jar:ml essent-1.jar:1 essent-0.jar:0}"
 ESSENT_RANK_SWEEP="${ESSENT_RANK_SWEEP:-0}"
 
-# Designs whose generated TestHarness.h is large enough that g++ -O3 OOMs
-# cc1plus when run concurrently with sibling builds. Determined empirically
-# (header > ~200 MB / single eval() body > ~10k lines).
-HEAVY_DESIGNS_DEFAULT="boom21-6small boom21-8small boom21-4large boom21-2mega boom21-4mega"
-HEAVY_DESIGNS="${HEAVY_DESIGNS:-$HEAVY_DESIGNS_DEFAULT}"
-HEAVY_OPT_FLAGS="${HEAVY_OPT_FLAGS:--O1}"
-HEAVY_DESIGN_PARALLEL="${HEAVY_DESIGN_PARALLEL:-1}"
 HEARTBEAT_INTERVAL="${HEARTBEAT_INTERVAL:-60}"
 CLEAN="${CLEAN:-0}"
 
-# Compiler override.
-#   ESSENT_CXX  -- if set, used as CXX/LINK for ALL designs.
-#   HEAVY_CXX   -- if set (or auto-detected), used as CXX/LINK for the heavy
-#                  tier only (overrides ESSENT_CXX for heavy tier).
-# Default for HEAVY_CXX: the newest gcc-toolset g++ available on the host.
-# This matters because RHEL 8's system g++ is 8.5.0 and crashes (SIGSEGV in
-# cc1plus) on the giant generated TestHarness.h files even at -O1; gcc 13/14
-# from gcc-toolset-{13,14} handles them fine.
+# When 1, fan out all (design × jar) pairs into one giant wave instead of
+# running one wave per jar. ML jobs are dispatched first so they grab the
+# concurrency slots and finish first when the cap is below NJOBS. See top-of-
+# file docstring. Only effective in the default ESSENT_JAR_STEPS path.
+ALL_RANKS_PARALLEL="${ALL_RANKS_PARALLEL:-0}"
+
+# Pipelining sentinel — see top-of-file docstring. Single file, written from
+# the EXIT trap so the consumer cannot deadlock on producer crashes/SIGINT.
+COMPILE_COMPLETE_FLAG="$ESSENT_MLDEDUP/log/compile_complete.flag"
+
+# Compiler selection (single-tier — same g++ for every design).
+#
+# ESSENT_CXX, if unset, auto-detects the newest available gcc-toolset g++.
+# RHEL 8's system g++ 8.5.0 SIGSEGVs (cc1plus stack overflow) on the giant
+# auto-generated TestHarness.h headers from boom21-{4,2}{mega,large}; gcc
+# 13/14 from gcc-toolset-{13,14} handles them fine.
 ESSENT_CXX="${ESSENT_CXX-}"
-if [[ -z "${HEAVY_CXX-}" ]]; then
+if [[ -z "$ESSENT_CXX" ]]; then
     for _gcc_candidate in \
         /opt/rh/gcc-toolset-14/root/usr/bin/g++ \
         /opt/rh/gcc-toolset-13/root/usr/bin/g++ \
         /opt/rh/gcc-toolset-12/root/usr/bin/g++ \
         /opt/rh/gcc-toolset-11/root/usr/bin/g++; do
         if [[ -x "$_gcc_candidate" ]]; then
-            HEAVY_CXX="$_gcc_candidate"
+            ESSENT_CXX="$_gcc_candidate"
             break
         fi
     done
     unset _gcc_candidate
 fi
-HEAVY_CXX="${HEAVY_CXX-}"
+
+# Deprecated env vars from the prior two-tier model. Parsed silently for
+# back-compat (so existing wrapper scripts don't error) but no longer have
+# any effect — see the top-of-file docstring.
+: "${HEAVY_DESIGNS-}" "${HEAVY_OPT_FLAGS-}" "${HEAVY_DESIGN_PARALLEL-}" "${HEAVY_CXX-}"
 
 _dspec="${DESIGNS-}"
 if [[ -n "$_dspec" ]]; then
@@ -146,7 +188,6 @@ DESIGN_PARALLEL="${DESIGN_PARALLEL:-$NUM_DESIGNS}"
 (( DESIGN_PARALLEL > NUM_DESIGNS )) && DESIGN_PARALLEL="$NUM_DESIGNS"
 JOBS_PER_DESIGN=$(( PARALLEL / DESIGN_PARALLEL ))
 (( JOBS_PER_DESIGN < 1 )) && JOBS_PER_DESIGN=1
-(( HEAVY_DESIGN_PARALLEL < 1 )) && HEAVY_DESIGN_PARALLEL=1
 
 _resolve_jar_path() {
     local j="$1"
@@ -155,14 +196,6 @@ _resolve_jar_path() {
     else
         printf '%s' "$JAR_DIR/$j"
     fi
-}
-
-_is_heavy() {
-    local d="$1" h
-    for h in $HEAVY_DESIGNS; do
-        [[ "$d" == "$h" ]] && return 0
-    done
-    return 1
 }
 
 _is_prepared() {
@@ -341,65 +374,144 @@ run_make_wave() {
     return 0
 }
 
-# Compile a single jar's emulators across all DESIGNS, splitting into a
-# "light" wave (full parallelism, normal -O3) and a "heavy" wave
-# (HEAVY_DESIGN_PARALLEL, CXX_OPT=$HEAVY_OPT_FLAGS).
+# ---------------------------------------------------------------------------
+# Per-job wave runner: launch up to <par> backgrounded `make compile_essent_<d>`
+# jobs at once, where every job carries its own ESSENT_JAR / ESSENT_RANK /
+# ESSENT_EXTRA_ARGS (unlike run_make_wave, which shares one extra-args set
+# across all jobs in the wave). Used only by ALL_RANKS_PARALLEL=1 mode.
+#
+# Inputs:
+#   $1                concurrency cap (par)
+#   JOB_DESIGN[@]     parallel arrays (read from caller scope) — one entry per
+#   JOB_JAR[@]        scheduled (design, rank) pair, in dispatch order. The
+#   JOB_RANK[@]       label is what shows up in stdout, heartbeat, error
+#   JOB_EXTRAARGS[@]  messages, etc. ML jobs should be at the front so they
+#   JOB_LABEL[@]      get the slots first when par < NJOBS.
+# ---------------------------------------------------------------------------
+run_make_wave_perjob() {
+    local par="$1"
+    local mk_prefix="compile_essent"
+    local n=${#JOB_DESIGN[@]}
+    local idx=0
+
+    WAVE_PID2NAME=()
+    WAVE_PID2START=()
+    : > "$HB_STATE_FILE"
+    _start_heartbeat
+
+    _launch_one_perjob() {
+        local i="$1"
+        local d="${JOB_DESIGN[$i]}"
+        local jar="${JOB_JAR[$i]}"
+        local rank="${JOB_RANK[$i]}"
+        local extra_args="${JOB_EXTRAARGS[$i]}"
+        local label="${JOB_LABEL[$i]}"
+        echo "  $label ..."
+        local -a passthrough=("ESSENT_JAR=$jar" "ESSENT_RANK=$rank")
+        [[ -n "$extra_args" ]] && passthrough+=("ESSENT_EXTRA_ARGS=$extra_args")
+        [[ -n "$ESSENT_CXX" ]] && passthrough+=("CXX=$ESSENT_CXX" "LINK=$ESSENT_CXX")
+        (
+            cd "$ESSENT_MLDEDUP"
+            exec make -j"$JOBS_PER_DESIGN" "${mk_prefix}_${d}" "${passthrough[@]}"
+        ) &
+        local pid=$!
+        WAVE_PID2NAME[$pid]="$label"
+        WAVE_PID2START[$pid]=$(date +%s)
+    }
+
+    while (( idx < n )) && (( ${#WAVE_PID2NAME[@]} < par )); do
+        _launch_one_perjob "$idx"
+        idx=$(( idx + 1 ))
+    done
+    _refresh_hb_state
+
+    while (( ${#WAVE_PID2NAME[@]} > 0 )); do
+        local status=0
+        wait -n 2>/dev/null || status=$?
+        local finished=""
+        local p
+        for p in "${!WAVE_PID2NAME[@]}"; do
+            if ! kill -0 "$p" 2>/dev/null; then
+                finished="$p"
+                break
+            fi
+        done
+        if [[ -z "$finished" ]]; then
+            sleep 1
+            continue
+        fi
+
+        local name="${WAVE_PID2NAME[$finished]}"
+        local elapsed=$(( $(date +%s) - WAVE_PID2START[$finished] ))
+        unset 'WAVE_PID2NAME[$finished]'
+        unset 'WAVE_PID2START[$finished]'
+
+        if (( status != 0 )); then
+            echo "ERROR: $name failed (exit $status, after ${elapsed}s)" >&2
+            local victims=()
+            for p in "${!WAVE_PID2NAME[@]}"; do
+                victims+=("${WAVE_PID2NAME[$p]}")
+            done
+            if (( ${#victims[@]} > 0 )); then
+                echo "  Killing ${#victims[@]} peer(s) in this wave: ${victims[*]}" >&2
+            fi
+            _kill_wave_peers
+            _stop_heartbeat
+            return 1
+        fi
+
+        echo "  $name OK (${elapsed}s)"
+
+        if (( idx < n )); then
+            _launch_one_perjob "$idx"
+            idx=$(( idx + 1 ))
+        fi
+        _refresh_hb_state
+    done
+
+    _stop_heartbeat
+    return 0
+}
+
+# Compile a single jar's emulators across all DESIGNS in one wave. Same
+# CXX, same opt flags for every design (see top-of-file docstring on why we
+# no longer split into light/heavy tiers).
 compile_essent_for_jar() {
     local label="$1" jar="$2" rank="$3"
-    local light=() heavy=()
+    local todo=()
     local d
     for d in "${DESIGNS[@]}"; do
         if _is_compiled "$d" "$rank"; then
             echo "  compile_essent_${d} SKIP (emulator_essent_${d}_r${rank} already exists)"
             continue
         fi
-        if _is_heavy "$d"; then
-            heavy+=("$d")
-        else
-            light+=("$d")
-        fi
+        todo+=("$d")
     done
+
+    if (( ${#todo[@]} == 0 )); then
+        return 0
+    fi
 
     # The ML jar needs `--ml-rank` on the essent.Driver command line to pick
     # the model's chosen dedup target. We detect by basename so any caller
     # (single-jar mode, ESSENT_JAR_STEPS, rank sweep, or the post-sweep ML
-    # pass below) gets the flag forwarded automatically.
+    # pass) gets the flag forwarded automatically.
     local extra_essent_args=""
     if [[ "$(basename "$jar")" == "essent-ml.jar" ]]; then
         extra_essent_args="--ml-rank"
     fi
 
-    if (( ${#light[@]} > 0 )); then
-        echo ""
-        echo "=== Compile $label → _r${rank}  (light tier: ${#light[@]} design(s), par=$DESIGN_PARALLEL${ESSENT_CXX:+, CXX=$ESSENT_CXX}${extra_essent_args:+, ESSENT_EXTRA_ARGS=$extra_essent_args}) ==="
-        RUN_DESIGNS=("${light[@]}")
-        local -a light_extra=("ESSENT_JAR=$jar" "ESSENT_RANK=$rank")
-        if [[ -n "$extra_essent_args" ]]; then
-            light_extra+=("ESSENT_EXTRA_ARGS=$extra_essent_args")
-        fi
-        if [[ -n "$ESSENT_CXX" ]]; then
-            light_extra+=("CXX=$ESSENT_CXX" "LINK=$ESSENT_CXX")
-        fi
-        run_make_wave "$DESIGN_PARALLEL" compile_essent "${light_extra[@]}"
+    echo ""
+    echo "=== Compile $label → _r${rank}  (${#todo[@]} design(s), par=$DESIGN_PARALLEL${ESSENT_CXX:+, CXX=$ESSENT_CXX}${extra_essent_args:+, ESSENT_EXTRA_ARGS=$extra_essent_args}) ==="
+    RUN_DESIGNS=("${todo[@]}")
+    local -a wave_extra=("ESSENT_JAR=$jar" "ESSENT_RANK=$rank")
+    if [[ -n "$extra_essent_args" ]]; then
+        wave_extra+=("ESSENT_EXTRA_ARGS=$extra_essent_args")
     fi
-
-    if (( ${#heavy[@]} > 0 )); then
-        local heavy_cxx="${HEAVY_CXX:-$ESSENT_CXX}"
-        echo ""
-        echo "=== Compile $label → _r${rank}  (heavy tier: ${#heavy[@]} design(s), par=$HEAVY_DESIGN_PARALLEL, CXX_OPT=${HEAVY_OPT_FLAGS:-<makefile default>}${heavy_cxx:+, CXX=$heavy_cxx}${extra_essent_args:+, ESSENT_EXTRA_ARGS=$extra_essent_args}) ==="
-        RUN_DESIGNS=("${heavy[@]}")
-        local -a heavy_extra=("ESSENT_JAR=$jar" "ESSENT_RANK=$rank")
-        if [[ -n "$extra_essent_args" ]]; then
-            heavy_extra+=("ESSENT_EXTRA_ARGS=$extra_essent_args")
-        fi
-        if [[ -n "$HEAVY_OPT_FLAGS" ]]; then
-            heavy_extra+=("CXX_OPT=$HEAVY_OPT_FLAGS")
-        fi
-        if [[ -n "$heavy_cxx" ]]; then
-            heavy_extra+=("CXX=$heavy_cxx" "LINK=$heavy_cxx")
-        fi
-        run_make_wave "$HEAVY_DESIGN_PARALLEL" compile_essent "${heavy_extra[@]}"
+    if [[ -n "$ESSENT_CXX" ]]; then
+        wave_extra+=("CXX=$ESSENT_CXX" "LINK=$ESSENT_CXX")
     fi
+    run_make_wave "$DESIGN_PARALLEL" compile_essent "${wave_extra[@]}"
 }
 
 # ---------------------------------------------------------------------------
@@ -415,6 +527,13 @@ _global_cleanup() {
         _kill_wave_peers
     fi
     rm -f "$HB_STATE_FILE" 2>/dev/null || true
+    # Always write the pipelining sentinel — even on failure / SIGINT — so any
+    # run_benchmarks.sh --pipeline consumer can stop waiting. `2>/dev/null` in
+    # case the log dir was never created (e.g. early-exit before mkdir).
+    if [[ -n "${COMPILE_COMPLETE_FLAG:-}" ]]; then
+        printf 'rc=%d\nts=%s\n' "$rc" "$(date -Iseconds)" \
+            > "$COMPILE_COMPLETE_FLAG" 2>/dev/null || true
+    fi
     exit $rc
 }
 trap _global_cleanup EXIT INT TERM
@@ -424,19 +543,21 @@ if [[ -n "$ESSENT_ONLY_JAR" ]]; then
     echo "    Mode:           single jar (ESSENT_ONLY_RANK=$ESSENT_ONLY_RANK)"
 elif [[ "$ESSENT_RANK_SWEEP" == "1" ]]; then
     echo "    Mode:           rank sweep $MIN_RANK..$MAX_RANK  ($JAR_DIR/essent-${MIN_RANK}.jar … essent-${MAX_RANK}.jar)"
+elif [[ "$ALL_RANKS_PARALLEL" == "1" ]]; then
+    echo "    Mode:           ESSENT_JAR_STEPS, all-ranks-parallel ($ESSENT_JAR_STEPS)"
 else
     echo "    Mode:           ESSENT_JAR_STEPS ($ESSENT_JAR_STEPS)"
 fi
 echo "    Designs:        ${DESIGNS[*]}"
-echo "    Light tier par: $DESIGN_PARALLEL  → make -j$JOBS_PER_DESIGN per design"
-echo "    Heavy tier:     $HEAVY_DESIGNS"
-echo "    Heavy par/opt:  par=$HEAVY_DESIGN_PARALLEL  CXX_OPT=${HEAVY_OPT_FLAGS:-<makefile default>}"
-if [[ -n "$ESSENT_CXX" ]]; then
-    echo "    CXX (all):      $ESSENT_CXX"
+if [[ "$ALL_RANKS_PARALLEL" == "1" && -z "$ESSENT_ONLY_JAR" && "$ESSENT_RANK_SWEEP" != "1" ]]; then
+    # In all-ranks-parallel mode the real concurrency is set right before
+    # dispatch (cap = NJOBS or ALL_RANKS_PARALLEL_CAP); the per-design wave
+    # values used for prepare are not the right summary here.
+    echo "    Concurrency:    all (design × jar) pairs concurrent (cap = ALL_RANKS_PARALLEL_CAP if set, else NJOBS)"
+else
+    echo "    Concurrency:    $DESIGN_PARALLEL design(s) at once → make -j$JOBS_PER_DESIGN per design"
 fi
-if [[ -n "$HEAVY_CXX" && "$HEAVY_CXX" != "$ESSENT_CXX" ]]; then
-    echo "    CXX (heavy):    $HEAVY_CXX"
-fi
+echo "    CXX:            ${ESSENT_CXX:-<system default g++>}"
 echo "    Stack ulimit:   $(ulimit -s)"
 echo "    Heartbeat:      every ${HEARTBEAT_INTERVAL}s (set HEARTBEAT_INTERVAL=0 to disable)"
 echo "    Resume mode:    $([[ "$CLEAN" == "1" ]] && echo "disabled (CLEAN=1)" || echo "enabled (set CLEAN=1 to override)")"
@@ -481,6 +602,10 @@ fi
 
 mkdir -p "$ESSENT_MLDEDUP/emulator" "$ESSENT_MLDEDUP/log"
 
+# Clear any stale pipelining sentinel from a previous (possibly crashed) run
+# before we start producing fresh emulator binaries.
+rm -f "$COMPILE_COMPLETE_FLAG" 2>/dev/null || true
+
 echo "=== Prepare designs (once) ==="
 _todo_prepare=()
 for d in "${DESIGNS[@]}"; do
@@ -521,6 +646,60 @@ elif [[ "$ESSENT_RANK_SWEEP" == "1" ]]; then
     else
         echo ""
         echo "Skipping ML pseudo-rank: $ML_JAR not found."
+    fi
+elif [[ "$ALL_RANKS_PARALLEL" == "1" ]]; then
+    # Fan out (design × jar) into one wave. Job order = ESSENT_JAR_STEPS
+    # outer loop × DESIGNS inner loop, so all ML jobs land at the head of
+    # the queue (then rank 1, then rank 0). When the concurrency cap covers
+    # the full job list, this is just "all 48 race"; when it doesn't, ML
+    # finishes first because it grabs the slots first.
+    JOB_DESIGN=()
+    JOB_JAR=()
+    JOB_RANK=()
+    JOB_LABEL=()
+    JOB_EXTRAARGS=()
+    for step in $ESSENT_JAR_STEPS; do
+        jf="${step%%:*}"
+        rk="${step#*:}"
+        JAR="$(_resolve_jar_path "$jf")"
+        extra_args=""
+        if [[ "$(basename "$JAR")" == "essent-ml.jar" ]]; then
+            extra_args="--ml-rank"
+        fi
+        for d in "${DESIGNS[@]}"; do
+            if _is_compiled "$d" "$rk"; then
+                echo "  compile_essent_${d}_r${rk} SKIP (emulator_essent_${d}_r${rk} already exists)"
+                continue
+            fi
+            JOB_DESIGN+=("$d")
+            JOB_JAR+=("$JAR")
+            JOB_RANK+=("$rk")
+            JOB_EXTRAARGS+=("$extra_args")
+            JOB_LABEL+=("compile_essent_${d}_r${rk}")
+        done
+    done
+
+    NJOBS=${#JOB_DESIGN[@]}
+    if (( NJOBS == 0 )); then
+        echo ""
+        echo "(all-ranks-parallel: nothing to do — all targets already compiled)"
+    else
+        # Concurrency cap defaults to all jobs; user can constrain via
+        # ALL_RANKS_PARALLEL_CAP if RAM is tight (e.g. 24 to keep peak ≲ 700 GiB).
+        WAVE_CAP="${ALL_RANKS_PARALLEL_CAP:-$NJOBS}"
+        if ! [[ "$WAVE_CAP" =~ ^[0-9]+$ ]] || (( WAVE_CAP < 1 )); then
+            echo "ERROR: ALL_RANKS_PARALLEL_CAP must be a positive integer (got: $WAVE_CAP)"
+            exit 1
+        fi
+        (( WAVE_CAP > NJOBS )) && WAVE_CAP="$NJOBS"
+        # Re-divide make -j across the wider concurrency. The original
+        # JOBS_PER_DESIGN was sized for DESIGN_PARALLEL designs at once; with
+        # 3× more concurrent jobs each gets 1/3 the threads.
+        JOBS_PER_DESIGN=$(( PARALLEL / WAVE_CAP ))
+        (( JOBS_PER_DESIGN < 1 )) && JOBS_PER_DESIGN=1
+        echo ""
+        echo "=== Compile (all-ranks parallel)  ($NJOBS job(s) across ranks, par=$WAVE_CAP, make -j$JOBS_PER_DESIGN per job${ESSENT_CXX:+, CXX=$ESSENT_CXX}) ==="
+        run_make_wave_perjob "$WAVE_CAP"
     fi
 else
     for step in $ESSENT_JAR_STEPS; do

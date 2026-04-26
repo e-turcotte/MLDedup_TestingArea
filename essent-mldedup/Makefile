@@ -1,4 +1,12 @@
 
+# Delete the target of any failed recipe.  The `compile_essent_<design>` rule
+# below ends with a series of `cp $(build_dir)/.../emulator_essent
+# $(output_dir)/emulator_essent_<design>_r<rank>` commands; if any of those
+# copies (or the inner sub-make) is interrupted mid-write, .DELETE_ON_ERROR
+# guarantees the half-written file in $(output_dir) is removed so the
+# resume-mode `_is_compiled` check in compile_emulators.sh does not skip a
+# truly-broken build on the next run.
+.DELETE_ON_ERROR:
 
 base_dir=$(abspath .)
 benchmark_dir=$(base_dir)/riscv-benchmarks-bin
