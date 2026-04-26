@@ -10,26 +10,25 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 SYSML="$(cd "$REPO_ROOT/.." && pwd)"
-JAR_DIR="$SYSML/jars"
+JAR_DIR="$REPO_ROOT/jars"
 ESSENT_MLDEDUP="$REPO_ROOT/essent-mldedup"
 
 usage() {
-    echo "Usage: $0 --benchmarks NAMES [--parallel-cpus LIST] [--min-rank K] [--max-rank K]"
+    echo "Usage: $0 --benchmarks NAMES [--parallel-cpus LIST] [--ranks LIST]"
     echo "          [--designs CSV] [--archive DIR] [--max-concurrent N]"
     echo ""
     echo "  --benchmarks     Comma-separated short names (vvadd, multiply, memcpy, mm, qsort, spmv, rsort, dhrystone, median, towers)"
-    echo "  --parallel-cpus   Comma-separated ints (default: 12)"
-    echo "  --min-rank/--max-rank  Inclusive rank range matching essent-<k>.jar / emulator names (default 0..10)"
-    echo "  --designs         Comma-separated designs (default: slim six)"
-    echo "  --archive         If set, copy logs + manifest under DIR/<timestamp>/rank<k>/"
-    echo "  --max-concurrent  MEASURE_MAX_CONCURRENT_RUNS (default 1)"
+    echo "  --parallel-cpus  Comma-separated ints (default: 12)"
+    echo "  --ranks          Comma-separated rank suffixes matching emulator_essent_<design>_r<rank> (default: ml,1,0)"
+    echo "  --designs        Comma-separated designs (default: all 16 compiled designs)"
+    echo "  --archive        If set, copy logs + manifest under DIR/<timestamp>/rank<k>/"
+    echo "  --max-concurrent MEASURE_MAX_CONCURRENT_RUNS (default 1)"
     exit 1
 }
 
 BENCHMARKS=""
 PARALLEL_CPUS="12"
-MIN_RANK="0"
-MAX_RANK="10"
+RANKS_CSV="ml,1,0"
 DESIGNS_CSV=""
 ARCHIVE=""
 MAX_CONCURRENT="1"
@@ -38,8 +37,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --benchmarks) BENCHMARKS="${2:-}"; shift 2 ;;
         --parallel-cpus) PARALLEL_CPUS="${2:-}"; shift 2 ;;
-        --min-rank) MIN_RANK="${2:-}"; shift 2 ;;
-        --max-rank) MAX_RANK="${2:-}"; shift 2 ;;
+        --ranks) RANKS_CSV="${2:-}"; shift 2 ;;
         --designs) DESIGNS_CSV="${2:-}"; shift 2 ;;
         --archive) ARCHIVE="${2:-}"; shift 2 ;;
         --max-concurrent) MAX_CONCURRENT="${2:-}"; shift 2 ;;
@@ -50,17 +48,17 @@ done
 
 [[ -n "$BENCHMARKS" ]] || { echo "ERROR: --benchmarks is required"; usage; }
 
-if ! [[ "$MIN_RANK" =~ ^[0-9]+$ ]] || ! [[ "$MAX_RANK" =~ ^[0-9]+$ ]]; then
-    echo "ERROR: ranks must be non-negative integers"
+IFS=',' read -r -a RANKS <<< "$RANKS_CSV"
+if (( ${#RANKS[@]} == 0 )); then
+    echo "ERROR: --ranks produced an empty list"
     exit 1
 fi
-(( MAX_RANK < MIN_RANK )) && { echo "ERROR: --max-rank must be >= --min-rank"; exit 1; }
 
 if [[ -z "$DESIGNS_CSV" ]]; then
-    DESIGNS_CSV="rocket21-1c,rocket21-2c,boom21-small,boom21-2small,boom21-large,boom21-2large,rocket21-4c,boom21-4small"
+    DESIGNS_CSV="rocket21-1c,rocket21-2c,rocket21-4c,rocket21-6c,rocket21-8c,boom21-small,boom21-2small,boom21-4small,boom21-6small,boom21-8small,boom21-large,boom21-2large,boom21-4large,boom21-mega,boom21-2mega,boom21-4mega"
 fi
 
-for k in $(seq "$MIN_RANK" "$MAX_RANK"); do
+for k in "${RANKS[@]}"; do
     JAR="$JAR_DIR/essent-${k}.jar"
     if [[ ! -f "$JAR" ]]; then
         echo "ERROR: jar not found (needed to document run): $JAR"
@@ -97,7 +95,7 @@ if [[ -n "$ARCHIVE" ]]; then
 fi
 
 echo "=== run_benchmarks ==="
-echo "    Ranks:      $MIN_RANK..$MAX_RANK"
+echo "    Ranks:      ${RANKS[*]}"
 echo "    Designs:    $DESIGNS_CSV"
 echo "    Benchmarks: $MLDEDUP_BENCHMARK_NAMES"
 echo "    Host par:   $MLDEDUP_PARALLEL_CPUS"
@@ -106,7 +104,7 @@ if [[ -n "$ARCHIVE_ROOT" ]]; then
 fi
 echo ""
 
-for k in $(seq "$MIN_RANK" "$MAX_RANK"); do
+for k in "${RANKS[@]}"; do
     JAR="$JAR_DIR/essent-${k}.jar"
     export MLDEDUP_ESSENT_RANK="$k"
     echo "=== Rank $k (MLDEDUP_ESSENT_RANK=$k) ==="

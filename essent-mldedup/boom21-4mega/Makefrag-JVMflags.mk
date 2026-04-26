@@ -1,1 +1,1 @@
-JVM_FLAGS = -Xms8G -Xmx16G -Xss10M
+JVM_FLAGS = -Xms2G -Xmx16G -Xss10M

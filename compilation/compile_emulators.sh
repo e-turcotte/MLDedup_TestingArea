@@ -33,6 +33,8 @@
 #   HEAVY_DESIGN_PARALLEL      — concurrency for the heavy tier (default: 1).
 #   HEARTBEAT_INTERVAL         — seconds between "still in flight" prints
 #                                during a wave (default: 60). 0 disables.
+#   CLEAN=1                    — ignore existing outputs; re-run all prepare and
+#                                compile steps regardless of what already exists.
 #
 set -euo pipefail
 # Enable job control so each backgrounded job runs in its own process group;
@@ -55,7 +57,7 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 SYSML="$(cd "$REPO_ROOT/.." && pwd)"
-JAR_DIR="$SYSML/jars"
+JAR_DIR="$REPO_ROOT/jars"
 ESSENT_MLDEDUP="$REPO_ROOT/essent-mldedup"
 SUBMOD_SH="$REPO_ROOT/compilation/clone_spike.sh"
 
@@ -67,17 +69,18 @@ SKIP_SUBMOD="${SKIP_SUBMOD:-0}"
 ESSENT_ONLY_JAR="${ESSENT_ONLY_JAR-}"
 ESSENT_ONLY_RANK="${ESSENT_ONLY_RANK:-ml}"
 # Multi-jar plan: "jarfile:rankSuffix" … (rankSuffix becomes _r<suffix> on binaries). Default = three-way compare.
-ESSENT_JAR_STEPS="${ESSENT_JAR_STEPS:-essent-0.jar:0 essent-1.jar:1 essent-ml.jar:ml}"
+ESSENT_JAR_STEPS="${ESSENT_JAR_STEPS:-essent-ml.jar:ml essent-1.jar:1 essent-0.jar:0}"
 ESSENT_RANK_SWEEP="${ESSENT_RANK_SWEEP:-0}"
 
 # Designs whose generated TestHarness.h is large enough that g++ -O3 OOMs
 # cc1plus when run concurrently with sibling builds. Determined empirically
 # (header > ~200 MB / single eval() body > ~10k lines).
-HEAVY_DESIGNS_DEFAULT="boom21-6small boom21-8small boom21-4large boom21-6large boom21-8large boom21-2mega boom21-4mega boom21-6mega boom21-8mega"
+HEAVY_DESIGNS_DEFAULT="boom21-6small boom21-8small boom21-4large boom21-2mega boom21-4mega"
 HEAVY_DESIGNS="${HEAVY_DESIGNS:-$HEAVY_DESIGNS_DEFAULT}"
 HEAVY_OPT_FLAGS="${HEAVY_OPT_FLAGS:--O1}"
 HEAVY_DESIGN_PARALLEL="${HEAVY_DESIGN_PARALLEL:-1}"
 HEARTBEAT_INTERVAL="${HEARTBEAT_INTERVAL:-60}"
+CLEAN="${CLEAN:-0}"
 
 # Compiler override.
 #   ESSENT_CXX  -- if set, used as CXX/LINK for ALL designs.
@@ -121,13 +124,9 @@ else
         boom21-large
         boom21-2large
         boom21-4large
-        boom21-6large
-        boom21-8large
         boom21-mega
         boom21-2mega
         boom21-4mega
-        boom21-6mega
-        boom21-8mega
     )
 fi
 unset _dspec
@@ -155,6 +154,16 @@ _is_heavy() {
         [[ "$d" == "$h" ]] && return 0
     done
     return 1
+}
+
+_is_prepared() {
+    [[ "$CLEAN" == "1" ]] && return 1
+    [[ -f "$ESSENT_MLDEDUP/build/$1/riscv/lib/libfesvr.a" ]]
+}
+
+_is_compiled() {
+    [[ "$CLEAN" == "1" ]] && return 1
+    [[ -f "$ESSENT_MLDEDUP/emulator/emulator_essent_${1}_r${2}" ]]
 }
 
 if [[ -z "$ESSENT_ONLY_JAR" ]] && [[ "$ESSENT_RANK_SWEEP" == "1" ]]; then
@@ -331,6 +340,10 @@ compile_essent_for_jar() {
     local light=() heavy=()
     local d
     for d in "${DESIGNS[@]}"; do
+        if _is_compiled "$d" "$rank"; then
+            echo "  compile_essent_${d} SKIP (emulator_essent_${d}_r${rank} already exists)"
+            continue
+        fi
         if _is_heavy "$d"; then
             heavy+=("$d")
         else
@@ -402,6 +415,7 @@ if [[ -n "$HEAVY_CXX" && "$HEAVY_CXX" != "$ESSENT_CXX" ]]; then
 fi
 echo "    Stack ulimit:   $(ulimit -s)"
 echo "    Heartbeat:      every ${HEARTBEAT_INTERVAL}s (set HEARTBEAT_INTERVAL=0 to disable)"
+echo "    Resume mode:    $([[ "$CLEAN" == "1" ]] && echo "disabled (CLEAN=1)" || echo "enabled (set CLEAN=1 to override)")"
 echo ""
 
 if [[ -n "$ESSENT_ONLY_JAR" ]]; then
@@ -444,8 +458,18 @@ fi
 mkdir -p "$ESSENT_MLDEDUP/emulator" "$ESSENT_MLDEDUP/log"
 
 echo "=== Prepare designs (once) ==="
-RUN_DESIGNS=("${DESIGNS[@]}")
-run_make_wave "$DESIGN_PARALLEL" prepare
+_todo_prepare=()
+for d in "${DESIGNS[@]}"; do
+    if _is_prepared "$d"; then
+        echo "  prepare_$d SKIP (already prepared)"
+    else
+        _todo_prepare+=("$d")
+    fi
+done
+if (( ${#_todo_prepare[@]} > 0 )); then
+    RUN_DESIGNS=("${_todo_prepare[@]}")
+    run_make_wave "$DESIGN_PARALLEL" prepare
+fi
 
 for d in "${DESIGNS[@]}"; do
     if [[ ! -d "$ESSENT_MLDEDUP/build/$d" ]]; then
