@@ -1,0 +1,481 @@
+======== Starting essent.passes.RemoveFormalNCover$ ========
+----------------------------------------------------------------------
+
+Time: 309.4 ms
+======== Finished essent.passes.RemoveFormalNCover$ ========
+======== Starting essent.passes.ReplaceAsyncRegs$ ========
+--------------------------------------------------------------------
+
+Time: 1.4 ms
+======== Finished essent.passes.ReplaceAsyncRegs$ ========
+======== Starting essent.passes.NoClockConnects$ ========
+-------------------------------------------------------------------
+
+Time: 196.3 ms
+======== Finished essent.passes.NoClockConnects$ ========
+======== Starting essent.passes.RegFromMem1$ ========
+---------------------------------------------------------------
+
+Time: 72.3 ms
+======== Finished essent.passes.RegFromMem1$ ========
+======== Starting essent.passes.RemoveAsAsyncReset$ ========
+----------------------------------------------------------------------
+
+Time: 155.6 ms
+======== Finished essent.passes.RemoveAsAsyncReset$ ========
+======== Starting essent.passes.FactorMemReads$ ========
+------------------------------------------------------------------
+
+Time: 300.1 ms
+======== Finished essent.passes.FactorMemReads$ ========
+======== Starting essent.passes.FactorMemWrites$ ========
+-------------------------------------------------------------------
+
+Time: 193.0 ms
+======== Finished essent.passes.FactorMemWrites$ ========
+======== Starting essent.passes.ReplaceRsvdKeywords$ ========
+-----------------------------------------------------------------------
+
+Time: 947.5 ms
+======== Finished essent.passes.ReplaceRsvdKeywords$ ========
+======== Starting essent.passes.SplitRegUpdates$ ========
+-------------------------------------------------------------------
+
+Time: 192.6 ms
+======== Finished essent.passes.SplitRegUpdates$ ========
+======== Starting essent.passes.FixMulResultWidth$ ========
+---------------------------------------------------------------------
+
+Time: 109.2 ms
+======== Finished essent.passes.FixMulResultWidth$ ========
+======== Starting essent.passes.DistinctTypeInstNames$ ========
+-------------------------------------------------------------------------
+
+Time: 156.4 ms
+======== Finished essent.passes.DistinctTypeInstNames$ ========
+Found straight connects in 41978/679810 statements
+Graph has 636367 nodes (597599 valid) and 1520533 edges
+==================================================
+Module Name, Num of Instances, Dedup Benefits
+TilePRCIDomain, 2, 288473
+BoomTile, 2, 286702
+TileResetDomain, 2, 286702
+BoomCore, 2, 140695
+BoomFrontend, 2, 45967
+ComposedBranchPredictorBank, 4, 41367
+==================================================
+Took 1405 ms to find proper dedup module
+Input circuit contains no duplicated modules!
+  #mffcs found: 245502
+  largest mffc: 1271
+[mffc] took: 75689
+Down to 292027 parts
+  merging up 37522 single-input parts
+  merging up 25505 single-input parts
+  merging up 24970 single-input parts
+  merging up 24792 single-input parts
+  merging up 24787 single-input parts
+[single] took: 4455
+Down to 276479 parts
+  attempting to merge 8784 groups of small siblings
+  attempting to merge 1229 groups of small siblings
+  attempting to merge 135 groups of small siblings
+  attempting to merge 49 groups of small siblings
+  attempting to merge 24 groups of small siblings
+  attempting to merge 28 groups of small siblings
+  attempting to merge 24 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 20 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 4 groups of small siblings
+  attempting to merge 0 groups of small siblings
+[siblings] took: 70940
+Down to 250536 parts
+  of 194813 small parts 88635 worth merging
+  of 116895 small parts 46526 worth merging
+  of 76897 small parts 17393 worth merging
+  of 62267 small parts 7291 worth merging
+  of 55707 small parts 4058 worth merging
+  of 51755 small parts 2593 worth merging
+  of 49272 small parts 1896 worth merging
+  of 47470 small parts 1675 worth merging
+  of 45895 small parts 1528 worth merging
+  of 44425 small parts 1520 worth merging
+  of 42968 small parts 1455 worth merging
+  of 41557 small parts 1430 worth merging
+  of 40156 small parts 1407 worth merging
+  of 38780 small parts 1382 worth merging
+  of 37433 small parts 1368 worth merging
+  of 36093 small parts 1190 worth merging
+  of 34937 small parts 1058 worth merging
+  of 33907 small parts 1096 worth merging
+  of 32871 small parts 1008 worth merging
+  of 31867 small parts 981 worth merging
+  of 30892 small parts 939 worth merging
+  of 29941 small parts 929 worth merging
+  of 29008 small parts 931 worth merging
+  of 28078 small parts 919 worth merging
+  of 27154 small parts 908 worth merging
+  of 26234 small parts 899 worth merging
+  of 25325 small parts 891 worth merging
+  of 24426 small parts 892 worth merging
+  of 23528 small parts 887 worth merging
+  of 22633 small parts 877 worth merging
+  of 21740 small parts 865 worth merging
+  of 20919 small parts 407 worth merging
+  of 20555 small parts 187 worth merging
+  of 20375 small parts 120 worth merging
+  of 20257 small parts 98 worth merging
+  of 20166 small parts 80 worth merging
+  of 20092 small parts 75 worth merging
+  of 20023 small parts 74 worth merging
+  of 19952 small parts 71 worth merging
+  of 19885 small parts 38 worth merging
+  of 19847 small parts 14 worth merging
+  of 19834 small parts 7 worth merging
+  of 19828 small parts 5 worth merging
+  of 19823 small parts 6 worth merging
+  of 19817 small parts 3 worth merging
+  of 19814 small parts 3 worth merging
+  of 19811 small parts 3 worth merging
+  of 19808 small parts 2 worth merging
+  of 19806 small parts 2 worth merging
+  of 19804 small parts 2 worth merging
+  of 19802 small parts 2 worth merging
+  of 19800 small parts 2 worth merging
+  of 19798 small parts 2 worth merging
+  of 19796 small parts 2 worth merging
+  of 19794 small parts 2 worth merging
+  of 19792 small parts 2 worth merging
+  of 19790 small parts 2 worth merging
+  of 19788 small parts 2 worth merging
+  of 19786 small parts 1 worth merging
+  of 19785 small parts 1 worth merging
+  of 19784 small parts 1 worth merging
+  of 19783 small parts 1 worth merging
+  of 19782 small parts 1 worth merging
+  of 19781 small parts 1 worth merging
+  of 19780 small parts 1 worth merging
+  of 19779 small parts 1 worth merging
+  of 19778 small parts 1 worth merging
+  of 19777 small parts 1 worth merging
+  of 19776 small parts 1 worth merging
+  of 19775 small parts 1 worth merging
+  of 19774 small parts 1 worth merging
+  of 19773 small parts 1 worth merging
+  of 19772 small parts 1 worth merging
+  of 19771 small parts 1 worth merging
+  of 19770 small parts 1 worth merging
+  of 19769 small parts 1 worth merging
+  of 19768 small parts 1 worth merging
+  of 19767 small parts 1 worth merging
+  of 19766 small parts 1 worth merging
+  of 19765 small parts 1 worth merging
+  of 19764 small parts 1 worth merging
+  of 19763 small parts 1 worth merging
+  of 19762 small parts 1 worth merging
+  of 19761 small parts 1 worth merging
+  of 19760 small parts 1 worth merging
+  of 19759 small parts 1 worth merging
+  of 19758 small parts 1 worth merging
+  of 19757 small parts 1 worth merging
+  of 19756 small parts 1 worth merging
+  of 19755 small parts 1 worth merging
+  of 19754 small parts 1 worth merging
+  of 19753 small parts 1 worth merging
+  of 19752 small parts 1 worth merging
+  of 19751 small parts 1 worth merging
+  of 19750 small parts 1 worth merging
+  of 19749 small parts 1 worth merging
+  of 19748 small parts 1 worth merging
+  of 19747 small parts 1 worth merging
+  of 19746 small parts 1 worth merging
+  of 19745 small parts 1 worth merging
+  of 19744 small parts 1 worth merging
+  of 19743 small parts 1 worth merging
+  of 19742 small parts 1 worth merging
+  of 19741 small parts 1 worth merging
+  of 19740 small parts 1 worth merging
+  of 19739 small parts 1 worth merging
+  of 19738 small parts 1 worth merging
+  of 19737 small parts 1 worth merging
+  of 19736 small parts 1 worth merging
+  of 19735 small parts 1 worth merging
+  of 19734 small parts 1 worth merging
+  of 19733 small parts 1 worth merging
+  of 19732 small parts 1 worth merging
+  of 19731 small parts 1 worth merging
+  of 19730 small parts 1 worth merging
+  of 19729 small parts 1 worth merging
+  of 19728 small parts 1 worth merging
+  of 19727 small parts 1 worth merging
+  of 19726 small parts 1 worth merging
+  of 19725 small parts 1 worth merging
+  of 19724 small parts 1 worth merging
+  of 19723 small parts 1 worth merging
+  of 19722 small parts 1 worth merging
+  of 19721 small parts 1 worth merging
+  of 19720 small parts 1 worth merging
+  of 19719 small parts 1 worth merging
+  of 19718 small parts 1 worth merging
+  of 19717 small parts 1 worth merging
+  of 19716 small parts 1 worth merging
+  of 19715 small parts 1 worth merging
+  of 19714 small parts 1 worth merging
+  of 19713 small parts 1 worth merging
+  of 19712 small parts 1 worth merging
+  of 19711 small parts 1 worth merging
+  of 19710 small parts 1 worth merging
+  of 19709 small parts 1 worth merging
+  of 19708 small parts 1 worth merging
+  of 19707 small parts 1 worth merging
+  of 19706 small parts 1 worth merging
+  of 19705 small parts 1 worth merging
+  of 19704 small parts 1 worth merging
+  of 19703 small parts 1 worth merging
+  of 19702 small parts 1 worth merging
+  of 19701 small parts 1 worth merging
+  of 19700 small parts 1 worth merging
+  of 19699 small parts 1 worth merging
+  of 19698 small parts 1 worth merging
+  of 19697 small parts 1 worth merging
+  of 19696 small parts 1 worth merging
+  of 19695 small parts 1 worth merging
+  of 19694 small parts 1 worth merging
+  of 19693 small parts 1 worth merging
+  of 19692 small parts 1 worth merging
+  of 19691 small parts 1 worth merging
+  of 19690 small parts 1 worth merging
+  of 19689 small parts 1 worth merging
+  of 19688 small parts 1 worth merging
+  of 19687 small parts 1 worth merging
+  of 19686 small parts 1 worth merging
+  of 19685 small parts 1 worth merging
+  of 19684 small parts 1 worth merging
+  of 19683 small parts 1 worth merging
+  of 19682 small parts 1 worth merging
+  of 19681 small parts 1 worth merging
+  of 19680 small parts 1 worth merging
+  of 19679 small parts 1 worth merging
+  of 19678 small parts 1 worth merging
+  of 19677 small parts 1 worth merging
+  of 19676 small parts 1 worth merging
+  of 19675 small parts 1 worth merging
+  of 19674 small parts 1 worth merging
+  of 19673 small parts 1 worth merging
+  of 19672 small parts 1 worth merging
+  of 19671 small parts 1 worth merging
+  of 19670 small parts 1 worth merging
+  of 19669 small parts 1 worth merging
+  of 19668 small parts 1 worth merging
+  of 19667 small parts 1 worth merging
+  of 19666 small parts 1 worth merging
+  of 19665 small parts 1 worth merging
+  of 19664 small parts 1 worth merging
+  of 19663 small parts 1 worth merging
+  of 19662 small parts 1 worth merging
+  of 19661 small parts 1 worth merging
+  of 19660 small parts 1 worth merging
+  of 19659 small parts 1 worth merging
+  of 19658 small parts 1 worth merging
+  of 19657 small parts 1 worth merging
+  of 19656 small parts 1 worth merging
+  of 19655 small parts 1 worth merging
+  of 19654 small parts 1 worth merging
+  of 19653 small parts 1 worth merging
+  of 19652 small parts 1 worth merging
+  of 19651 small parts 1 worth merging
+  of 19650 small parts 1 worth merging
+  of 19649 small parts 1 worth merging
+  of 19648 small parts 1 worth merging
+  of 19647 small parts 1 worth merging
+  of 19646 small parts 1 worth merging
+  of 19645 small parts 1 worth merging
+  of 19644 small parts 1 worth merging
+  of 19643 small parts 1 worth merging
+  of 19642 small parts 1 worth merging
+  of 19641 small parts 1 worth merging
+  of 19640 small parts 1 worth merging
+  of 19639 small parts 1 worth merging
+  of 19638 small parts 1 worth merging
+  of 19637 small parts 1 worth merging
+  of 19636 small parts 1 worth merging
+  of 19635 small parts 1 worth merging
+  of 19634 small parts 1 worth merging
+  of 19633 small parts 1 worth merging
+  of 19632 small parts 1 worth merging
+  of 19631 small parts 1 worth merging
+  of 19630 small parts 1 worth merging
+  of 19629 small parts 1 worth merging
+  of 19628 small parts 1 worth merging
+  of 19627 small parts 1 worth merging
+  of 19626 small parts 1 worth merging
+  of 19625 small parts 1 worth merging
+  of 19624 small parts 1 worth merging
+  of 19623 small parts 1 worth merging
+  of 19622 small parts 1 worth merging
+  of 19621 small parts 1 worth merging
+  of 19620 small parts 1 worth merging
+  of 19619 small parts 1 worth merging
+  of 19618 small parts 1 worth merging
+  of 19617 small parts 1 worth merging
+  of 19616 small parts 1 worth merging
+  of 19615 small parts 1 worth merging
+  of 19614 small parts 1 worth merging
+  of 19613 small parts 1 worth merging
+  of 19612 small parts 1 worth merging
+  of 19611 small parts 1 worth merging
+  of 19610 small parts 1 worth merging
+  of 19609 small parts 1 worth merging
+  of 19608 small parts 1 worth merging
+  of 19607 small parts 1 worth merging
+  of 19606 small parts 1 worth merging
+  of 19605 small parts 1 worth merging
+  of 19604 small parts 1 worth merging
+  of 19603 small parts 1 worth merging
+  of 19602 small parts 1 worth merging
+  of 19601 small parts 1 worth merging
+  of 19600 small parts 1 worth merging
+  of 19599 small parts 1 worth merging
+  of 19598 small parts 1 worth merging
+  of 19597 small parts 1 worth merging
+  of 19596 small parts 1 worth merging
+  of 19595 small parts 1 worth merging
+  of 19594 small parts 1 worth merging
+  of 19593 small parts 1 worth merging
+  of 19592 small parts 1 worth merging
+  of 19591 small parts 1 worth merging
+  of 19590 small parts 1 worth merging
+  of 19589 small parts 1 worth merging
+  of 19588 small parts 1 worth merging
+  of 19587 small parts 1 worth merging
+  of 19586 small parts 1 worth merging
+  of 19585 small parts 1 worth merging
+  of 19584 small parts 1 worth merging
+  of 19583 small parts 1 worth merging
+  of 19582 small parts 1 worth merging
+  of 19581 small parts 1 worth merging
+  of 19580 small parts 1 worth merging
+  of 19579 small parts 1 worth merging
+  of 19578 small parts 1 worth merging
+  of 19577 small parts 1 worth merging
+  of 19576 small parts 1 worth merging
+  of 19575 small parts 1 worth merging
+  of 19574 small parts 1 worth merging
+  of 19573 small parts 1 worth merging
+  of 19572 small parts 1 worth merging
+  of 19571 small parts 1 worth merging
+  of 19570 small parts 1 worth merging
+  of 19569 small parts 1 worth merging
+  of 19568 small parts 1 worth merging
+  of 19567 small parts 1 worth merging
+  of 19566 small parts 1 worth merging
+  of 19565 small parts 1 worth merging
+  of 19564 small parts 1 worth merging
+  of 19563 small parts 1 worth merging
+  of 19562 small parts 1 worth merging
+  of 19561 small parts 0 worth merging
+[small] took: 17027538
+Down to 85351 parts
+  of 19561 small parts 18486 worth merging down
+  of 9476 small parts 8676 worth merging down
+  of 4989 small parts 4236 worth merging down
+  of 3055 small parts 2330 worth merging down
+  of 2471 small parts 1750 worth merging down
+  of 2146 small parts 1425 worth merging down
+  of 1922 small parts 1201 worth merging down
+  of 1754 small parts 1033 worth merging down
+  of 1619 small parts 898 worth merging down
+  of 1516 small parts 795 worth merging down
+  of 1431 small parts 710 worth merging down
+  of 1356 small parts 635 worth merging down
+  of 1298 small parts 577 worth merging down
+  of 1251 small parts 530 worth merging down
+  of 1217 small parts 496 worth merging down
+  of 1184 small parts 463 worth merging down
+  of 1153 small parts 432 worth merging down
+  of 1127 small parts 406 worth merging down
+  of 1103 small parts 382 worth merging down
+  of 1080 small parts 359 worth merging down
+  of 1057 small parts 336 worth merging down
+  of 1034 small parts 313 worth merging down
+  of 1012 small parts 291 worth merging down
+  of 990 small parts 269 worth merging down
+  of 968 small parts 247 worth merging down
+  of 947 small parts 226 worth merging down
+  of 928 small parts 207 worth merging down
+  of 909 small parts 188 worth merging down
+  of 890 small parts 169 worth merging down
+  of 871 small parts 150 worth merging down
+  of 852 small parts 131 worth merging down
+  of 834 small parts 113 worth merging down
+  of 816 small parts 95 worth merging down
+  of 801 small parts 80 worth merging down
+  of 787 small parts 66 worth merging down
+  of 774 small parts 53 worth merging down
+  of 763 small parts 42 worth merging down
+  of 756 small parts 35 worth merging down
+  of 749 small parts 28 worth merging down
+  of 742 small parts 21 worth merging down
+  of 735 small parts 14 worth merging down
+  of 733 small parts 12 worth merging down
+  of 731 small parts 10 worth merging down
+  of 730 small parts 9 worth merging down
+  of 729 small parts 8 worth merging down
+  of 728 small parts 7 worth merging down
+  of 727 small parts 6 worth merging down
+  of 726 small parts 5 worth merging down
+  of 725 small parts 4 worth merging down
+  of 724 small parts 3 worth merging down
+  of 723 small parts 2 worth merging down
+  of 722 small parts 1 worth merging down
+  of 721 small parts 0 worth merging down
+[down] took: 1184721
+Down to 67716 parts
+  of 9810 small parts 8026 worth merging
+  of 3417 small parts 2097 worth merging
+  of 1748 small parts 493 worth merging
+  of 1380 small parts 130 worth merging
+  of 1273 small parts 26 worth merging
+  of 1248 small parts 3 worth merging
+  of 1245 small parts 1 worth merging
+  of 1244 small parts 1 worth merging
+  of 1243 small parts 0 worth merging
+[small2] took: 807056
+Down to 60059 parts
+Parts: 13535
+Output nodes: 182327
+Nodes in parts: 597599
+Edges in parts: 889240 (68.1%))
+Nodes/part: 44.2
+Outputs/part: 13.5
+Part size range: 1 - 7757
+Wrote dedup features CSV to /home/ss96869/storage/MLDedup_TestingArea/essent-mldedup/build/boom21-2mega/dedup_features.csv

@@ -1,0 +1,239 @@
+======== Starting essent.passes.RemoveFormalNCover$ ========
+----------------------------------------------------------------------
+
+Time: 163.1 ms
+======== Finished essent.passes.RemoveFormalNCover$ ========
+======== Starting essent.passes.ReplaceAsyncRegs$ ========
+--------------------------------------------------------------------
+
+Time: 0.8 ms
+======== Finished essent.passes.ReplaceAsyncRegs$ ========
+======== Starting essent.passes.NoClockConnects$ ========
+-------------------------------------------------------------------
+
+Time: 94.7 ms
+======== Finished essent.passes.NoClockConnects$ ========
+======== Starting essent.passes.RegFromMem1$ ========
+---------------------------------------------------------------
+
+Time: 53.6 ms
+======== Finished essent.passes.RegFromMem1$ ========
+======== Starting essent.passes.RemoveAsAsyncReset$ ========
+----------------------------------------------------------------------
+
+Time: 76.9 ms
+======== Finished essent.passes.RemoveAsAsyncReset$ ========
+======== Starting essent.passes.FactorMemReads$ ========
+------------------------------------------------------------------
+
+Time: 169.0 ms
+======== Finished essent.passes.FactorMemReads$ ========
+======== Starting essent.passes.FactorMemWrites$ ========
+-------------------------------------------------------------------
+
+Time: 113.6 ms
+======== Finished essent.passes.FactorMemWrites$ ========
+======== Starting essent.passes.ReplaceRsvdKeywords$ ========
+-----------------------------------------------------------------------
+
+Time: 129.9 ms
+======== Finished essent.passes.ReplaceRsvdKeywords$ ========
+======== Starting essent.passes.SplitRegUpdates$ ========
+-------------------------------------------------------------------
+
+Time: 69.9 ms
+======== Finished essent.passes.SplitRegUpdates$ ========
+======== Starting essent.passes.FixMulResultWidth$ ========
+---------------------------------------------------------------------
+
+Time: 49.7 ms
+======== Finished essent.passes.FixMulResultWidth$ ========
+======== Starting essent.passes.DistinctTypeInstNames$ ========
+-------------------------------------------------------------------------
+
+Time: 126.8 ms
+======== Finished essent.passes.DistinctTypeInstNames$ ========
+Found straight connects in 23529/360866 statements
+Graph has 336394 nodes (316008 valid) and 792667 edges
+==================================================
+Module Name, Num of Instances, Dedup Benefits
+ComposedBranchPredictorBank, 2, 13789
+BoomMSHR, 8, 7448
+LoopBranchPredictorBank, 2, 4488
+FPUUnit, 2, 3174
+FPU, 2, 3010
+TageBranchPredictorBank, 2, 2678
+==================================================
+Took 732 ms to find proper dedup module
+Input circuit contains no duplicated modules!
+  #mffcs found: 128797
+  largest mffc: 1271
+[mffc] took: 16649
+Down to 154577 parts
+  merging up 19668 single-input parts
+  merging up 13237 single-input parts
+  merging up 12935 single-input parts
+  merging up 12846 single-input parts
+  merging up 12842 single-input parts
+[single] took: 938
+Down to 146272 parts
+  attempting to merge 4662 groups of small siblings
+  attempting to merge 844 groups of small siblings
+  attempting to merge 72 groups of small siblings
+  attempting to merge 25 groups of small siblings
+  attempting to merge 12 groups of small siblings
+  attempting to merge 14 groups of small siblings
+  attempting to merge 12 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 10 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 2 groups of small siblings
+  attempting to merge 0 groups of small siblings
+[siblings] took: 21823
+Down to 131558 parts
+  of 100752 small parts 46652 worth merging
+  of 58810 small parts 23113 worth merging
+  of 38916 small parts 8387 worth merging
+  of 31721 small parts 3685 worth merging
+  of 28436 small parts 1829 worth merging
+  of 26665 small parts 1181 worth merging
+  of 25562 small parts 871 worth merging
+  of 24711 small parts 788 worth merging
+  of 23936 small parts 771 worth merging
+  of 23197 small parts 728 worth merging
+  of 22483 small parts 718 worth merging
+  of 21778 small parts 696 worth merging
+  of 21092 small parts 680 worth merging
+  of 20422 small parts 677 worth merging
+  of 19754 small parts 666 worth merging
+  of 19089 small parts 588 worth merging
+  of 18510 small parts 529 worth merging
+  of 17976 small parts 512 worth merging
+  of 17461 small parts 515 worth merging
+  of 16948 small parts 500 worth merging
+  of 16439 small parts 486 worth merging
+  of 15950 small parts 489 worth merging
+  of 15461 small parts 483 worth merging
+  of 14968 small parts 476 worth merging
+  of 14489 small parts 479 worth merging
+  of 14005 small parts 476 worth merging
+  of 13520 small parts 470 worth merging
+  of 13039 small parts 465 worth merging
+  of 12563 small parts 456 worth merging
+  of 12096 small parts 455 worth merging
+  of 11631 small parts 451 worth merging
+  of 11196 small parts 214 worth merging
+  of 11000 small parts 85 worth merging
+  of 10920 small parts 56 worth merging
+  of 10864 small parts 38 worth merging
+  of 10826 small parts 34 worth merging
+  of 10792 small parts 33 worth merging
+  of 10759 small parts 34 worth merging
+  of 10725 small parts 33 worth merging
+  of 10692 small parts 17 worth merging
+  of 10675 small parts 5 worth merging
+  of 10670 small parts 3 worth merging
+  of 10667 small parts 2 worth merging
+  of 10665 small parts 2 worth merging
+  of 10663 small parts 2 worth merging
+  of 10661 small parts 2 worth merging
+  of 10659 small parts 1 worth merging
+  of 10658 small parts 0 worth merging
+[small] took: 1177541
+Down to 46616 parts
+  of 10658 small parts 10065 worth merging down
+  of 5121 small parts 4686 worth merging down
+  of 2706 small parts 2295 worth merging down
+  of 1707 small parts 1307 worth merging down
+  of 1389 small parts 993 worth merging down
+  of 1203 small parts 807 worth merging down
+  of 1082 small parts 686 worth merging down
+  of 991 small parts 595 worth merging down
+  of 912 small parts 516 worth merging down
+  of 849 small parts 453 worth merging down
+  of 799 small parts 403 worth merging down
+  of 756 small parts 360 worth merging down
+  of 723 small parts 327 worth merging down
+  of 696 small parts 300 worth merging down
+  of 676 small parts 280 worth merging down
+  of 658 small parts 262 worth merging down
+  of 641 small parts 245 worth merging down
+  of 625 small parts 229 worth merging down
+  of 611 small parts 215 worth merging down
+  of 597 small parts 201 worth merging down
+  of 583 small parts 187 worth merging down
+  of 570 small parts 174 worth merging down
+  of 558 small parts 162 worth merging down
+  of 547 small parts 151 worth merging down
+  of 536 small parts 140 worth merging down
+  of 526 small parts 130 worth merging down
+  of 516 small parts 120 worth merging down
+  of 506 small parts 110 worth merging down
+  of 496 small parts 100 worth merging down
+  of 486 small parts 90 worth merging down
+  of 476 small parts 80 worth merging down
+  of 466 small parts 70 worth merging down
+  of 456 small parts 60 worth merging down
+  of 446 small parts 50 worth merging down
+  of 438 small parts 42 worth merging down
+  of 430 small parts 34 worth merging down
+  of 424 small parts 28 worth merging down
+  of 419 small parts 23 worth merging down
+  of 414 small parts 18 worth merging down
+  of 409 small parts 13 worth merging down
+  of 404 small parts 8 worth merging down
+  of 402 small parts 6 worth merging down
+  of 401 small parts 5 worth merging down
+  of 400 small parts 4 worth merging down
+  of 399 small parts 3 worth merging down
+  of 398 small parts 2 worth merging down
+  of 397 small parts 1 worth merging down
+  of 396 small parts 0 worth merging down
+[down] took: 179212
+Down to 37014 parts
+  of 5202 small parts 4218 worth merging
+  of 1717 small parts 984 worth merging
+  of 951 small parts 244 worth merging
+  of 765 small parts 63 worth merging
+  of 720 small parts 18 worth merging
+  of 709 small parts 7 worth merging
+  of 704 small parts 2 worth merging
+  of 702 small parts 0 worth merging
+[small2] took: 85824
+Down to 32998 parts
+Parts: 7219
+Output nodes: 96528
+Nodes in parts: 316008
+Edges in parts: 465296 (68.1%))
+Nodes/part: 43.8
+Outputs/part: 13.4
+Part size range: 1 - 5394
+Wrote dedup features CSV to /home/ss96869/storage/MLDedup_TestingArea/essent-mldedup/build/boom21-mega/dedup_features.csv

@@ -380,6 +380,17 @@ run_make_wave() {
 # ESSENT_EXTRA_ARGS (unlike run_make_wave, which shares one extra-args set
 # across all jobs in the wave). Used only by ALL_RANKS_PARALLEL=1 mode.
 #
+# Per-design serialization: each design shares a single build directory, so
+# two ranks of the same design must not run concurrently (they would both
+# write TestHarness.h and corrupt each other). The scheduler tracks which
+# designs are currently in flight and skips a job if its design already has
+# a running job. As soon as that job finishes the next rank for that design
+# starts immediately, giving seamless cross-rank pipelining per design while
+# keeping the build directories clean.
+#
+# Effective concurrency: min(par, num_unique_designs). With 16 designs and
+# par=24 the real cap is 16; the extra headroom in par is harmless.
+#
 # Inputs:
 #   $1                concurrency cap (par)
 #   JOB_DESIGN[@]     parallel arrays (read from caller scope) — one entry per
@@ -392,10 +403,15 @@ run_make_wave_perjob() {
     local par="$1"
     local mk_prefix="compile_essent"
     local n=${#JOB_DESIGN[@]}
-    local idx=0
 
     WAVE_PID2NAME=()
     WAVE_PID2START=()
+    local -A _pid2design=()
+    local -A _design_inflight=()
+    local -a _pending=()
+    local _i
+    for (( _i=0; _i<n; _i++ )); do _pending+=("$_i"); done
+
     : > "$HB_STATE_FILE"
     _start_heartbeat
 
@@ -417,12 +433,29 @@ run_make_wave_perjob() {
         local pid=$!
         WAVE_PID2NAME[$pid]="$label"
         WAVE_PID2START[$pid]=$(date +%s)
+        _pid2design[$pid]="$d"
+        _design_inflight[$d]=1
     }
 
-    while (( idx < n )) && (( ${#WAVE_PID2NAME[@]} < par )); do
-        _launch_one_perjob "$idx"
-        idx=$(( idx + 1 ))
-    done
+    # Scan _pending[] and launch jobs up to par, skipping designs in flight.
+    _fill_slots() {
+        local new_pending=() p d
+        for p in "${_pending[@]}"; do
+            if (( ${#WAVE_PID2NAME[@]} >= par )); then
+                new_pending+=("$p")
+                continue
+            fi
+            d="${JOB_DESIGN[$p]}"
+            if [[ -n "${_design_inflight[$d]:-}" ]]; then
+                new_pending+=("$p")
+                continue
+            fi
+            _launch_one_perjob "$p"
+        done
+        _pending=("${new_pending[@]}")
+    }
+
+    _fill_slots
     _refresh_hb_state
 
     while (( ${#WAVE_PID2NAME[@]} > 0 )); do
@@ -443,8 +476,11 @@ run_make_wave_perjob() {
 
         local name="${WAVE_PID2NAME[$finished]}"
         local elapsed=$(( $(date +%s) - WAVE_PID2START[$finished] ))
+        local d="${_pid2design[$finished]}"
         unset 'WAVE_PID2NAME[$finished]'
         unset 'WAVE_PID2START[$finished]'
+        unset '_pid2design[$finished]'
+        unset '_design_inflight[$d]'
 
         if (( status != 0 )); then
             echo "ERROR: $name failed (exit $status, after ${elapsed}s)" >&2
@@ -461,11 +497,7 @@ run_make_wave_perjob() {
         fi
 
         echo "  $name OK (${elapsed}s)"
-
-        if (( idx < n )); then
-            _launch_one_perjob "$idx"
-            idx=$(( idx + 1 ))
-        fi
+        _fill_slots
         _refresh_hb_state
     done
 

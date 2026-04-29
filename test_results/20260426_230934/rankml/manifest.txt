@@ -1,0 +1,8 @@
+rank: ml
+jar: /home/ss96869/storage/MLDedup_TestingArea/jars/essent-ml.jar
+timestamp: 2026-04-27T15:09:46-05:00
+designs: rocket21-1c rocket21-2c rocket21-4c rocket21-6c rocket21-8c boom21-small boom21-2small boom21-4small boom21-6small boom21-8small boom21-large boom21-2large boom21-4large boom21-mega boom21-2mega boom21-4mega
+MLDEDUP_BENCHMARK_NAMES: vvadd,multiply,memcpy,qsort
+MLDEDUP_PARALLEL_CPUS: 32,48,64
+MEASURE_MAX_CONCURRENT_RUNS: 1
+jar_sha256: 9a4ffe5249a800861dde5467f66787488de89c2d14384d51d7d84b1728fa8c66

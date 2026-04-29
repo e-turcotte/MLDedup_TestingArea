@@ -37,11 +37,11 @@ OUTPUT_CSV = REPO_ROOT / "data" / "regression_dataset.csv"
 
 # Current: ..._mldedup_{design}_r{rank}_{benchmark}_{cpus}_{index}.log
 STDOUT_RE_RANKED = re.compile(
-    r"^throughput_stdout_mldedup_(.+)_r(\d+)_([a-zA-Z]\w*)_(\d+)_(\d+)\.log$"
+    r"^throughput_stdout_mldedup_(.+)_r([a-zA-Z0-9]+)_([a-zA-Z]\w*)_(\d+)_(\d+)\.log$"
 )
 # Old ranked (with Nt- prefix): ..._mldedup_{design}_r{rank}_{Nt}-{benchmark}_{cpus}_{index}.log
 STDOUT_RE_RANKED_NT = re.compile(
-    r"^throughput_stdout_mldedup_(.+)_r(\d+)_(\d+t)-(.+)_(\d+)_(\d+)\.log$"
+    r"^throughput_stdout_mldedup_(.+)_r([a-zA-Z0-9]+)_(\d+t)-(.+)_(\d+)_(\d+)\.log$"
 )
 # Legacy (no rank infix): ..._mldedup_{design}_{Nt}-{benchmark}_{cpus}_{index}.log
 STDOUT_RE_LEGACY = re.compile(
@@ -106,13 +106,13 @@ def parse_cycles(stdout_log: Path) -> Optional[int]:
     return int(m.group(1)) if m else None
 
 
-def parse_rank(manifest: Path) -> Optional[int]:
-    """Return rank integer from manifest.txt."""
+def parse_rank(manifest: Path) -> Optional[str]:
+    """Return rank string from manifest.txt."""
     try:
         for line in manifest.read_text().splitlines():
             if line.startswith("rank:"):
-                return int(line.split(":", 1)[1].strip())
-    except (OSError, ValueError):
+                return line.split(":", 1)[1].strip()
+    except OSError:
         pass
     return None
 
@@ -201,22 +201,21 @@ def collect_sweep_from_logs(
 # ---------------------------------------------------------------------------
 
 
-def load_features(path: Path) -> Dict[Tuple[str, int], dict]:
-    """Load dedup features CSV (headerless) keyed by (design, rank)."""
-    features: Dict[Tuple[str, int], dict] = {}
+def load_features(path: Path) -> Dict[Tuple[str, str], dict]:
+    """Load dedup features CSV keyed by (design, rank)."""
+    features: Dict[Tuple[str, str], dict] = {}
     with path.open(newline="") as f:
         reader = csv.reader(f)
         for raw in reader:
             if len(raw) < len(FEATURES_HEADER):
-                print(f"WARNING: skipping short features row: {raw}", file=sys.stderr)
                 continue
             row = dict(zip(FEATURES_HEADER, raw))
-            try:
-                rank = int(row["rank"])
-            except ValueError:
-                print(f"WARNING: bad rank in features: {row}", file=sys.stderr)
+            rank = row["rank"].strip()
+            if not rank or rank == "rank":
                 continue
             design = row["design"].strip()
+            if not design or design == "design":
+                continue
             features[(design, rank)] = row
     return features
 
@@ -227,16 +226,16 @@ def load_features(path: Path) -> Dict[Tuple[str, int], dict]:
 
 
 def build_dataset(
-    sweep: Dict[Tuple[str, int, str, int], List[float]],
-    features: Dict[Tuple[str, int], dict],
+    sweep: Dict[Tuple[str, str, str, int], List[float]],
+    features: Dict[Tuple[str, str], dict],
 ) -> List[dict]:
     baselines: Dict[Tuple[str, str, int], float] = {}
-    medians: Dict[Tuple[str, int, str, int], float] = {}
+    medians: Dict[Tuple[str, str, str, int], float] = {}
 
     for (cpu, rank, bench, pcpus), samples in sweep.items():
         med = statistics.median(samples)
         medians[(cpu, rank, bench, pcpus)] = med
-        if rank == 0:
+        if rank == "0":
             baselines[(cpu, bench, pcpus)] = med
 
     rows: List[dict] = []
@@ -244,7 +243,7 @@ def build_dataset(
     missing_features: set = set()
 
     for (cpu, rank, bench, pcpus), med in sorted(medians.items()):
-        if rank == 0:
+        if rank == "0":
             continue
 
         base_key = (cpu, bench, pcpus)
